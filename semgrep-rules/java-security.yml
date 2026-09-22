@@ -1,0 +1,235 @@
+#rules:
+#  - id: securecode.java.command-injection.runtime-exec
+#    languages: [java]
+#    severity: ERROR
+#    message: Untrusted data passed to Runtime.exec can cause command injection. Avoid shell command construction and use a safe, fixed command allowlist.
+#    metadata:
+#      cwe: CWE-78
+#      vulnerability_type: COMMAND_INJECTION
+#    patterns:
+#      - pattern: Runtime.getRuntime().exec($COMMAND)
+#
+#  - id: securecode.java.sql-injection.statement-concatenation
+#    languages: [java]
+#    severity: ERROR
+#    message: SQL built by string concatenation can cause SQL injection. Use parameterized queries (PreparedStatement) instead.
+#    metadata:
+#      cwe: CWE-89
+#      vulnerability_type: SQL_INJECTION
+#    pattern-either:
+#      - pattern: $STATEMENT.executeQuery("..." + $VALUE + "...")
+#      - pattern: $STATEMENT.executeUpdate("..." + $VALUE + "...")
+#      - pattern: $STATEMENT.execute("..." + $VALUE + "...")
+
+rules:
+
+  # ============================================================
+  # 1. SQL INJECTION
+  # CWE-89
+  # ============================================================
+
+  - id: securecode.java.sql-injection
+    languages:
+      - java
+    mode: taint
+    severity: ERROR
+
+    message: >
+      User-controlled data reaches a SQL query sink. This can allow SQL
+      Injection. Use PreparedStatement with parameterized queries instead
+      of constructing SQL with untrusted input.
+
+    metadata:
+      cwe: CWE-89
+      vulnerability_type: SQL_INJECTION
+      category: INJECTION
+      confidence: HIGH
+      impact: HIGH
+
+    pattern-sources:
+      - patterns:
+          - pattern: $REQUEST.getParameter(...)
+      - patterns:
+          - pattern: $SCANNER.nextLine()
+      - patterns:
+          - pattern: $SCANNER.next()
+      - patterns:
+          - pattern: $INPUT.readLine()
+
+    pattern-sinks:
+      - patterns:
+          - pattern: $STATEMENT.executeQuery($QUERY)
+      - patterns:
+          - pattern: $STATEMENT.executeUpdate($QUERY)
+      - patterns:
+          - pattern: $STATEMENT.execute($QUERY)
+
+
+  # ============================================================
+  # 2. COMMAND INJECTION
+  # CWE-78
+  # ============================================================
+
+  - id: securecode.java.command-injection
+    languages:
+      - java
+    mode: taint
+    severity: ERROR
+
+    message: >
+      User-controlled data reaches a command execution sink. This can allow
+      OS Command Injection. Use a fixed command and argument allowlist
+      instead of executing user-controlled commands.
+
+    metadata:
+      cwe: CWE-78
+      vulnerability_type: COMMAND_INJECTION
+      category: INJECTION
+      confidence: HIGH
+      impact: HIGH
+
+    pattern-sources:
+      - patterns:
+          - pattern: $REQUEST.getParameter(...)
+      - patterns:
+          - pattern: $SCANNER.nextLine()
+      - patterns:
+          - pattern: $SCANNER.next()
+
+    pattern-sinks:
+      - patterns:
+          - pattern: Runtime.getRuntime().exec($COMMAND)
+      - patterns:
+          - pattern: $RUNTIME.exec($COMMAND)
+      - patterns:
+          - pattern: new ProcessBuilder($COMMAND)
+      - patterns:
+          - pattern: $PROCESS_BUILDER.command($COMMAND)
+
+
+  # ============================================================
+  # 3. PATH TRAVERSAL
+  # CWE-22
+  # ============================================================
+
+  - id: securecode.java.path-traversal
+    languages:
+      - java
+    mode: taint
+    severity: ERROR
+
+    message: >
+      User-controlled data reaches a filesystem path. This can allow Path
+      Traversal and unauthorized file access. Validate and canonicalize paths
+      and restrict access to an intended directory.
+
+    metadata:
+      cwe: CWE-22
+      vulnerability_type: PATH_TRAVERSAL
+      category: INJECTION
+      confidence: HIGH
+      impact: HIGH
+
+    pattern-sources:
+      - patterns:
+          - pattern: $REQUEST.getParameter(...)
+      - patterns:
+          - pattern: $SCANNER.nextLine()
+      - patterns:
+          - pattern: $SCANNER.next()
+
+    pattern-sinks:
+      - patterns:
+          - pattern: new File($PATH)
+      - patterns:
+          - pattern: new FileInputStream($PATH)
+      - patterns:
+          - pattern: new FileOutputStream($PATH)
+      - patterns:
+          - pattern: Files.readAllBytes($PATH)
+      - patterns:
+          - pattern: Files.readString($PATH)
+      - patterns:
+          - pattern: Files.write($PATH, ...)
+      - patterns:
+          - pattern: Files.newInputStream($PATH)
+      - patterns:
+          - pattern: Files.newOutputStream($PATH)
+
+
+  # ============================================================
+  # 4. LDAP INJECTION
+  # CWE-90
+  # ============================================================
+
+  - id: securecode.java.ldap-injection
+    languages:
+      - java
+    mode: taint
+    severity: ERROR
+
+    message: >
+      User-controlled data reaches an LDAP query or search filter.
+      This can allow LDAP Injection. Escape LDAP filter values or use
+      safe query construction mechanisms.
+
+    metadata:
+      cwe: CWE-90
+      vulnerability_type: LDAP_INJECTION
+      category: INJECTION
+      confidence: HIGH
+      impact: HIGH
+
+    pattern-sources:
+      - patterns:
+          - pattern: $REQUEST.getParameter(...)
+      - patterns:
+          - pattern: $SCANNER.nextLine()
+      - patterns:
+          - pattern: $SCANNER.next()
+
+    pattern-sinks:
+      - patterns:
+          - pattern: $CTX.search(..., $FILTER, ...)
+      - patterns:
+          - pattern: $DIRCTX.search(..., $FILTER, ...)
+      - patterns:
+          - pattern: $CONTEXT.search(..., $FILTER, ...)
+
+
+  # ============================================================
+  # 5. XPATH INJECTION
+  # CWE-643
+  # ============================================================
+
+  - id: securecode.java.xpath-injection
+    languages:
+      - java
+    mode: taint
+    severity: ERROR
+
+    message: >
+      User-controlled data reaches an XPath expression. This can allow
+      XPath Injection. Avoid constructing XPath expressions directly
+      from untrusted input.
+
+    metadata:
+      cwe: CWE-643
+      vulnerability_type: XPATH_INJECTION
+      category: INJECTION
+      confidence: HIGH
+      impact: HIGH
+
+    pattern-sources:
+      - patterns:
+          - pattern: $REQUEST.getParameter(...)
+      - patterns:
+          - pattern: $SCANNER.nextLine()
+      - patterns:
+          - pattern: $SCANNER.next()
+
+    pattern-sinks:
+      - patterns:
+          - pattern: $XPATH.evaluate($EXPRESSION, ...)
+      - patterns:
+          - pattern: $XPATH.compile($EXPRESSION)

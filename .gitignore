@@ -1,0 +1,10 @@
+# Build output
+target/
+
+# IDE and OS files
+.idea/
+*.iml
+.DS_Store
+
+# Local database configuration
+.env

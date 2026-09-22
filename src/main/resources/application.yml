@@ -1,0 +1,33 @@
+spring:
+  config:
+    import: "optional:file:.env[.properties],optional:file:.env[.properties]"
+  application:
+    name: securecode-ai
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/securecode}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+
+judge0:
+  base-url: ${JUDGE0_BASE_URL:http://localhost:2358}
+  auth-token: ${JUDGE0_AUTH_TOKEN:}
+  poll-interval-ms: ${JUDGE0_POLL_INTERVAL_MS:500}
+  max-wait-ms: ${JUDGE0_MAX_WAIT_MS:30000}
+
+semgrep:
+  enabled: ${SEMGREP_ENABLED:true}
+  wsl-distribution: ${SEMGREP_WSL_DISTRIBUTION:Ubuntu}
+  executable: ${SEMGREP_EXECUTABLE:semgrep}
+  rules-path: ${SEMGREP_RULES_PATH:semgrep-rules/java-security.yml}
+  timeout-ms: ${SEMGREP_TIMEOUT_MS:30000}
