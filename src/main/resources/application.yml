@@ -31,3 +31,8 @@ semgrep:
   executable: ${SEMGREP_EXECUTABLE:semgrep}
   rules-path: ${SEMGREP_RULES_PATH:semgrep-rules/java-security.yml}
   timeout-ms: ${SEMGREP_TIMEOUT_MS:30000}
+
+auth:
+  # Set AUTH_TOKEN_SECRET outside local development; never commit a production secret.
+  token-secret: ${AUTH_TOKEN_SECRET:change-this-development-secret-before-production}
+  token-lifetime-seconds: ${AUTH_TOKEN_LIFETIME_SECONDS:28800}

@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class SecureCodeAiApplication {
 
     public static void main(String[] args) {
+
         SpringApplication.run(SecureCodeAiApplication.class, args);
     }
 }

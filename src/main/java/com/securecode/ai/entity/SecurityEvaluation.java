@@ -22,16 +22,20 @@ public class SecurityEvaluation {
     private String severity;
     @Column(precision = 5, scale = 4) private BigDecimal confidence;
     private String evidence;
+    @Column(name = "evaluator_status") private String evaluatorStatus;
+    @Column(name = "evaluator_error") private String evaluatorError;
     protected SecurityEvaluation() { }
     public SecurityEvaluation(Submission submission, String evaluatorName, boolean detected, String vulnerabilityType,
-            String cwe, String severity, BigDecimal confidence, String evidence) {
+            String cwe, String severity, BigDecimal confidence, String evidence, String evaluatorStatus, String evaluatorError) {
         this.submission = submission; this.evaluatorName = evaluatorName; this.detected = detected;
         this.vulnerabilityType = vulnerabilityType; this.cwe = cwe; this.severity = severity;
-        this.confidence = confidence; this.evidence = evidence;
+        this.confidence = confidence; this.evidence = evidence; this.evaluatorStatus = evaluatorStatus; this.evaluatorError = evaluatorError;
     }
     public String getEvaluatorName() { return evaluatorName; }
     public boolean isDetected() { return detected; }
     public String getVulnerabilityType() { return vulnerabilityType; }
     public String getCwe() { return cwe; }
     public String getSeverity() { return severity; }
+    public String getEvaluatorStatus() { return evaluatorStatus; }
+    public String getEvaluatorError() { return evaluatorError; }
 }

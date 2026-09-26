@@ -16,14 +16,15 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/challenges")
 public class ChallengeController {
     private final ChallengeService challengeService;
     public ChallengeController(ChallengeService challengeService) { this.challengeService = challengeService; }
-    @GetMapping public List<ChallengeResponse> getAll() { return challengeService.getAllForStudent(); }
-    @GetMapping("/{id}") public ChallengeResponse getById(@PathVariable Long id) { return challengeService.getByIdForStudent(id); }
+    @GetMapping public List<ChallengeResponse> getAll(Authentication authentication) { return challengeService.getAllForStudent(authentication.getName()); }
+    @GetMapping("/{id}") public ChallengeResponse getById(@PathVariable Long id, Authentication authentication) { return challengeService.getByIdForStudent(id, authentication.getName()); }
     @PostMapping public ResponseEntity<ChallengeResponse> create(@Valid @RequestBody ChallengeRequest request) {
         ChallengeResponse response = challengeService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).location(URI.create("/challenges/" + response.id())).body(response);

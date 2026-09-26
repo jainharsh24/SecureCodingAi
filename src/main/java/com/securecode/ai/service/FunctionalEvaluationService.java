@@ -20,6 +20,7 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class FunctionalEvaluationService {
@@ -38,12 +39,15 @@ public class FunctionalEvaluationService {
         this.securityEvaluationService = securityEvaluationService;
     }
 
+    @Transactional
     public FunctionalEvaluationResponse submitAndEvaluate(Long challengeId, String email, SubmissionRequest request) {
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Challenge not found"));
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
-        Submission submission = submissionRepository.save(new Submission(user, challenge, request.sourceCode()));
+        long previousAttempts = submissionRepository.countByUser_IdAndChallenge_Id(user.getId(), challengeId);
+        if (previousAttempts >= 5) throw new ResponseStatusException(HttpStatus.CONFLICT, "Attempt limit reached: each user may submit a challenge at most 5 times");
+        Submission submission = submissionRepository.save(new Submission(user, challenge, request.sourceCode(), (int) previousAttempts + 1));
         List<TestCase> testCases = challenge.getTestCases().stream()
                 .sorted(Comparator.comparingInt(TestCase::getPosition)).toList();
         if (testCases.isEmpty()) return saveResult(submission, FunctionalEvaluationStatus.EVALUATION_ERROR, 0, 0,
@@ -71,8 +75,12 @@ public class FunctionalEvaluationService {
         FunctionalEvaluation evaluation = evaluationRepository.save(new FunctionalEvaluation(submission, status, passed, total, details));
         var securityEvaluation = status == FunctionalEvaluationStatus.PASS && "java".equalsIgnoreCase(submissionLanguage(submission))
                 ? securityEvaluationService.evaluateJava(submission, sourceCode(submission)) : null;
+        int score = learningScore(status, securityEvaluation);
+        String rawAssessment = rawAssessment(status, securityEvaluation);
+        submission.recordAssessment(score, rawAssessment);
         return new FunctionalEvaluationResponse(evaluation.getSubmissionId(), evaluation.getStatus().name(),
-                evaluation.getPassedTests(), evaluation.getTotalTests(), securityEvaluation);
+                evaluation.getPassedTests(), evaluation.getTotalTests(), securityEvaluation, submission.getAttemptNumber(),
+                5 - submission.getAttemptNumber(), score);
     }
 
     private String submissionLanguage(Submission submission) { return submission.getLanguage(); }
@@ -83,5 +91,19 @@ public class FunctionalEvaluationService {
         String normalized = output.replace("\r\n", "\n").replace('\r', '\n');
         while (normalized.endsWith("\n")) normalized = normalized.substring(0, normalized.length() - 1);
         return normalized;
+    }
+
+    private int learningScore(FunctionalEvaluationStatus functional, com.securecode.ai.dto.SecurityEvaluationResponse security) {
+        if (functional != FunctionalEvaluationStatus.PASS) return 0;
+        if (security == null || !"COMPLETED".equals(security.status())) return 70;
+        // Semgrep's completed finding set is the persisted security evidence.  No findings is strong safe evidence.
+        if (!security.detected()) return 100;
+        return 25;
+    }
+
+    private String rawAssessment(FunctionalEvaluationStatus functional, com.securecode.ai.dto.SecurityEvaluationResponse security) {
+        if (functional != FunctionalEvaluationStatus.PASS) return "FAIL";
+        if (security == null || !"COMPLETED".equals(security.status())) return "MOSTLY SAFE";
+        return security.detected() ? "STRONG VULNERABILITY" : "STRONG SAFE";
     }
 }

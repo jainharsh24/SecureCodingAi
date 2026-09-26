@@ -24,4 +24,5 @@ public class SubmissionController {
             Authentication authentication) {
         return functionalEvaluationService.submitAndEvaluate(challengeId, authentication.getName(), request);
     }
+
 }

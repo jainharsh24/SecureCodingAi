@@ -22,6 +22,9 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(nullable = false)
+    private String name;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
@@ -35,11 +38,15 @@ public class User {
     protected User() {
     }
 
-    public User(String email, String passwordHash, Role role) {
+    public User(String name, String email, String passwordHash, Role role) {
+        this.name = name;
         this.email = email;
         this.passwordHash = passwordHash;
         this.role = role;
     }
+
+    /** Kept for callers created before display names were introduced. */
+    public User(String email, String passwordHash, Role role) { this(email.substring(0, email.indexOf('@')), email, passwordHash, role); }
 
     @PrePersist
     void setCreatedAt() {
@@ -55,6 +62,9 @@ public class User {
     public String getEmail() {
         return email;
     }
+    public String getName() { return name; }
+    public void changeName(String name) { this.name = name; }
+    public void changePasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 
     public String getPasswordHash() {
         return passwordHash;

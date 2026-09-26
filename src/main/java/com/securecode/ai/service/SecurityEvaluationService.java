@@ -35,7 +35,8 @@ public class SecurityEvaluationService {
                 : firstFinding == null ? "EVALUATOR_ERROR" : firstFinding.severity();
         securityEvaluationRepository.save(new SecurityEvaluation(submission, EVALUATOR, result.detected(),
                 firstFinding == null ? null : firstFinding.vulnerabilityType(), firstFinding == null ? null : firstFinding.cwe(),
-                severity, null, result.rawJson() == null ? result.error() : result.rawJson()));
+                severity, null, result.rawJson() == null ? result.error() : result.rawJson(),
+                normalized.status().name(), normalized.error()));
         return new SecurityEvaluationResponse(EVALUATOR, normalized.status().name(), !normalized.findings().isEmpty(),
                 result.findings().stream().map(this::toResponse).toList(), normalized.error(), normalized);
     }
