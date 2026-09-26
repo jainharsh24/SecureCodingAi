@@ -2,6 +2,7 @@ package com.securecode.ai.controller;
 
 import com.securecode.ai.dto.ChangePasswordRequest;
 import com.securecode.ai.dto.SubmissionHistoryResponse;
+import com.securecode.ai.dto.StudentAnalyticsResponse;
 import com.securecode.ai.dto.UpdateProfileRequest;
 import com.securecode.ai.dto.UserSummaryResponse;
 import com.securecode.ai.entity.User;
@@ -29,6 +30,7 @@ public class StudentController {
 
     @GetMapping("/summary") public UserSummaryResponse summary(Authentication auth) { return studentData.summary(auth.getName()); }
     @GetMapping("/history") public List<SubmissionHistoryResponse> history(Authentication auth) { return studentData.history(auth.getName()); }
+    @GetMapping("/analytics") public StudentAnalyticsResponse analytics(Authentication auth) { return studentData.analytics(auth.getName()); }
     @PutMapping("/profile") public UserSummaryResponse updateProfile(Authentication auth, @Valid @RequestBody UpdateProfileRequest request) {
         User user = current(auth); user.changeName(request.name().trim()); users.save(user); return studentData.summary(auth.getName());
     }

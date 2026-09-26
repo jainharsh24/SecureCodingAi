@@ -1,7 +1,10 @@
 package com.securecode.ai.service;
 
 import com.securecode.ai.dto.SubmissionHistoryResponse;
+import com.securecode.ai.dto.LearningProgressPoint;
+import com.securecode.ai.dto.StudentAnalyticsResponse;
 import com.securecode.ai.dto.UserSummaryResponse;
+import com.securecode.ai.dto.VulnerabilitySubtypeProgress;
 import com.securecode.ai.entity.SecurityEvaluation;
 import com.securecode.ai.entity.Submission;
 import com.securecode.ai.entity.User;
@@ -10,6 +13,8 @@ import com.securecode.ai.repository.SecurityEvaluationRepository;
 import com.securecode.ai.repository.SubmissionRepository;
 import com.securecode.ai.repository.UserRepository;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +48,24 @@ public class StudentDataService {
         return new UserSummaryResponse(user.getName(), user.getEmail(), solved, attempted, all.size(), average);
     }
 
+    @Transactional(readOnly = true)
+    public StudentAnalyticsResponse analytics(String email) {
+        user(email);
+        List<Submission> all = submissions.findByUser_EmailOrderBySubmittedAtDesc(email);
+        List<LearningProgressPoint> progress = all.reversed().stream()
+                .map(s -> new LearningProgressPoint(s.getChallenge().getTitle(), s.getAttemptNumber(), s.getLearningScore(), s.getSubmittedAt()))
+                .toList();
+        long passed = all.stream().filter(s -> functionals.findBySubmission_Id(s.getId())
+                .map(e -> "PASS".equals(e.getStatus().name())).orElse(false)).count();
+        int highestSafeEvidence = all.stream().mapToInt(this::safeEvidencePercent).max().orElse(0);
+        Map<Long, String> solvedChallenges = new LinkedHashMap<>();
+        all.stream().filter(s -> s.getLearningScore() >= 90).forEach(s -> solvedChallenges.putIfAbsent(s.getChallenge().getId(), subtype(s)));
+        List<VulnerabilitySubtypeProgress> bySubtype = solvedChallenges.values().stream()
+                .collect(java.util.stream.Collectors.groupingBy(value -> value, LinkedHashMap::new, java.util.stream.Collectors.counting()))
+                .entrySet().stream().map(entry -> new VulnerabilitySubtypeProgress(entry.getKey(), entry.getValue())).toList();
+        return new StudentAnalyticsResponse(solvedChallenges.size(), passed, highestSafeEvidence, progress, bySubtype);
+    }
+
     private SubmissionHistoryResponse historyItem(Submission submission) {
         List<SecurityEvaluation> evidence = securities.findBySubmission_Id(submission.getId());
         int completed = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus())).count();
@@ -53,6 +76,18 @@ public class StudentDataService {
                 submission.getChallenge().getDifficulty().name(), submission.getAttemptNumber(), submission.getSubmittedAt(), functional,
                 submission.getRawAssessment(), submission.getLearningScore(), safePercent, completed == 0 ? 0 : 100 - safePercent,
                 historyEvidenceState(functional, submission.getRawAssessment(), completed));
+    }
+
+    private int safeEvidencePercent(Submission submission) {
+        List<SecurityEvaluation> evidence = securities.findBySubmission_Id(submission.getId());
+        int completed = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus())).count();
+        int safe = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus()) && !e.isDetected()).count();
+        return completed == 0 ? 0 : Math.round(safe * 100f / completed);
+    }
+
+    private String subtype(Submission submission) {
+        String subtype = submission.getChallenge().getVulnerabilitySubtype();
+        return subtype == null || subtype.isBlank() ? "Unspecified" : subtype;
     }
 
     private String historyEvidenceState(String functional, String assessment, int completedEvidence) {
