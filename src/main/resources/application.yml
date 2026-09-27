@@ -32,6 +32,15 @@ semgrep:
   rules-path: ${SEMGREP_RULES_PATH:semgrep-rules/java-security.yml}
   timeout-ms: ${SEMGREP_TIMEOUT_MS:30000}
 
+spotbugs:
+  enabled: ${SPOTBUGS_ENABLED:true}
+  # These run in the same Windows environment as Spring Boot, unlike Semgrep's WSL process.
+  executable: ${SPOTBUGS_EXECUTABLE:C:/Users/harsh/Downloads/spotbugs-4.10.4/bin/spotbugs.bat}
+  find-sec-bugs-plugin-path: ${FINDSECBUGS_PLUGIN_PATH:C:/Users/harsh/Downloads/spotbugs-4.10.4/plugin/findsecbugs-plugin-1.14.0.jar}
+  # Explicit JDK compiler: a running JVM does not guarantee javac is on the child-process PATH.
+  javac-executable: ${SPOTBUGS_JAVAC_EXECUTABLE:C:/Program Files/Java/jdk-25/bin/javac.exe}
+  timeout-ms: ${SPOTBUGS_TIMEOUT_MS:30000}
+
 auth:
   # Set AUTH_TOKEN_SECRET outside local development; never commit a production secret.
   token-secret: ${AUTH_TOKEN_SECRET:change-this-development-secret-before-production}

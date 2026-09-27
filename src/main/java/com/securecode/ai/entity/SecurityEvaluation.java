@@ -38,4 +38,5 @@ public class SecurityEvaluation {
     public String getSeverity() { return severity; }
     public String getEvaluatorStatus() { return evaluatorStatus; }
     public String getEvaluatorError() { return evaluatorError; }
+    public String getEvidence() { return evidence; }
 }

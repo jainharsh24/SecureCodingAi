@@ -7,38 +7,55 @@ import com.securecode.ai.entity.Submission;
 import com.securecode.ai.evaluation.SecurityFinding;
 import com.securecode.ai.evaluation.SemgrepClient;
 import com.securecode.ai.evaluation.SemgrepScanResult;
+import com.securecode.ai.evaluation.common.SecurityFindingEvidenceCodec;
 import com.securecode.ai.evaluation.normalization.NormalizedSecurityResult;
 import com.securecode.ai.evaluation.normalization.SemgrepEvidenceNormalizer;
+import com.securecode.ai.evaluation.spotbugs.SpotBugsClient;
+import com.securecode.ai.evaluation.spotbugs.SpotBugsScanResult;
 import com.securecode.ai.repository.SecurityEvaluationRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SecurityEvaluationService {
-    private static final String EVALUATOR = "SEMGREP";
+    private static final String SEMGREP = "SEMGREP";
+    private static final String SPOTBUGS = "SPOTBUGS";
     private final SemgrepClient semgrepClient;
+    private final SpotBugsClient spotBugsClient;
     private final SecurityEvaluationRepository securityEvaluationRepository;
     private final SemgrepEvidenceNormalizer semgrepEvidenceNormalizer;
+    private final SecurityFindingEvidenceCodec findingEvidenceCodec;
 
     public SecurityEvaluationService(SemgrepClient semgrepClient, SecurityEvaluationRepository securityEvaluationRepository,
-            SemgrepEvidenceNormalizer semgrepEvidenceNormalizer) {
+            SemgrepEvidenceNormalizer semgrepEvidenceNormalizer, SpotBugsClient spotBugsClient,
+            SecurityFindingEvidenceCodec findingEvidenceCodec) {
         this.semgrepClient = semgrepClient;
         this.securityEvaluationRepository = securityEvaluationRepository;
         this.semgrepEvidenceNormalizer = semgrepEvidenceNormalizer;
+        this.spotBugsClient = spotBugsClient;
+        this.findingEvidenceCodec = findingEvidenceCodec;
     }
 
     public SecurityEvaluationResponse evaluateJava(Submission submission, String sourceCode) {
         SemgrepScanResult result = semgrepClient.scanJava(sourceCode);
         NormalizedSecurityResult normalized = semgrepEvidenceNormalizer.normalize(result);
-        SecurityFinding firstFinding = result.findings().isEmpty() ? null : result.findings().getFirst();
-        String severity = firstFinding == null && normalized.status().name().equals("COMPLETED") ? "INFO"
-                : firstFinding == null ? "EVALUATOR_ERROR" : firstFinding.severity();
-        securityEvaluationRepository.save(new SecurityEvaluation(submission, EVALUATOR, result.detected(),
-                firstFinding == null ? null : firstFinding.vulnerabilityType(), firstFinding == null ? null : firstFinding.cwe(),
-                severity, null, result.rawJson() == null ? result.error() : result.rawJson(),
-                normalized.status().name(), normalized.error()));
-        return new SecurityEvaluationResponse(EVALUATOR, normalized.status().name(), !normalized.findings().isEmpty(),
+        persist(submission, SEMGREP, result.findings(), normalized.status().name(), normalized.error());
+
+        SpotBugsScanResult spotBugsResult = spotBugsClient.scanJava(sourceCode);
+        persist(submission, SPOTBUGS, spotBugsResult.findings(), spotBugsResult.status().name(), spotBugsResult.error());
+
+        // Keep the established submission response shape: it remains the Semgrep response.
+        return new SecurityEvaluationResponse(SEMGREP, normalized.status().name(), !normalized.findings().isEmpty(),
                 result.findings().stream().map(this::toResponse).toList(), normalized.error(), normalized);
+    }
+
+    private void persist(Submission submission, String evaluator, List<SecurityFinding> findings, String status, String error) {
+        SecurityFinding firstFinding = findings.isEmpty() ? null : findings.getFirst();
+        String severity = firstFinding == null && "COMPLETED".equals(status) ? "INFO"
+                : firstFinding == null ? "EVALUATOR_ERROR" : firstFinding.severity();
+        securityEvaluationRepository.save(new SecurityEvaluation(submission, evaluator, !findings.isEmpty(),
+                firstFinding == null ? null : firstFinding.vulnerabilityType(), firstFinding == null ? null : firstFinding.cwe(),
+                severity, null, findingEvidenceCodec.encode(findings), status, error));
     }
 
     private SecurityFindingResponse toResponse(SecurityFinding finding) {

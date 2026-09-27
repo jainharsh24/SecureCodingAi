@@ -2,8 +2,12 @@ package com.securecode.ai.service;
 
 import com.securecode.ai.dto.AssessmentResponse;
 import com.securecode.ai.dto.EvaluatorResultResponse;
+import com.securecode.ai.dto.EvaluatorFindingsResponse;
 import com.securecode.ai.dto.EvidenceSummaryResponse;
+import com.securecode.ai.dto.SecurityFindingDisplayResponse;
 import com.securecode.ai.dto.SubmissionAnalysisResponse;
+import com.securecode.ai.evaluation.common.SecurityFindingEvidenceCodec;
+import com.securecode.ai.evaluation.common.StoredSecurityFinding;
 import com.securecode.ai.entity.FunctionalEvaluation;
 import com.securecode.ai.entity.FunctionalEvaluationStatus;
 import com.securecode.ai.entity.SecurityEvaluation;
@@ -35,13 +39,15 @@ public class SubmissionAnalysisService {
     private final SubmissionRepository submissionRepository;
     private final FunctionalEvaluationRepository functionalEvaluationRepository;
     private final SecurityEvaluationRepository securityEvaluationRepository;
+    private final SecurityFindingEvidenceCodec findingEvidenceCodec;
 
     public SubmissionAnalysisService(SubmissionRepository submissionRepository,
             FunctionalEvaluationRepository functionalEvaluationRepository,
-            SecurityEvaluationRepository securityEvaluationRepository) {
+            SecurityEvaluationRepository securityEvaluationRepository, SecurityFindingEvidenceCodec findingEvidenceCodec) {
         this.submissionRepository = submissionRepository;
         this.functionalEvaluationRepository = functionalEvaluationRepository;
         this.securityEvaluationRepository = securityEvaluationRepository;
+        this.findingEvidenceCodec = findingEvidenceCodec;
     }
 
     @Transactional(readOnly = true)
@@ -67,7 +73,24 @@ public class SubmissionAnalysisService {
         EvidenceSummaryResponse evidence = evidenceSummary(securityByEvaluator.values());
         Assessment assessment = assessment(functional.getStatus(), evidence);
         return new SubmissionAnalysisResponse(submissionId, assessment.overallDecision(), evaluators, evidence,
-                new AssessmentResponse(assessment.evidenceState()));
+                new AssessmentResponse(assessment.evidenceState()), findingGroups(securityByEvaluator));
+    }
+
+    private List<EvaluatorFindingsResponse> findingGroups(Map<String, SecurityEvaluation> securityByEvaluator) {
+        return EVALUATOR_CATALOG.subList(1, EVALUATOR_CATALOG.size()).stream()
+                .map(definition -> findingGroup(definition, securityByEvaluator.get(definition.id())))
+                .filter(java.util.Objects::nonNull).toList();
+    }
+
+    private EvaluatorFindingsResponse findingGroup(EvaluatorDefinition definition, SecurityEvaluation evaluation) {
+        if (evaluation == null || !evaluation.isDetected()) return null;
+        List<StoredSecurityFinding> stored = findingEvidenceCodec.decode(evaluation.getEvidence());
+        if (stored.isEmpty() && evaluation.getVulnerabilityType() != null) {
+            stored = List.of(new StoredSecurityFinding(evaluation.getVulnerabilityType(), evaluation.getCwe()));
+        }
+        List<SecurityFindingDisplayResponse> findings = stored.stream()
+                .map(finding -> new SecurityFindingDisplayResponse(finding.finding(), finding.cwe())).distinct().toList();
+        return findings.isEmpty() ? null : new EvaluatorFindingsResponse(definition.id(), definition.displayName(), findings);
     }
 
     private EvaluatorResultResponse toSecurityEvaluator(EvaluatorDefinition definition, SecurityEvaluation evaluation) {

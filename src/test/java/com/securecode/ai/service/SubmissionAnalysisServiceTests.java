@@ -10,6 +10,7 @@ import com.securecode.ai.entity.Role;
 import com.securecode.ai.entity.SecurityEvaluation;
 import com.securecode.ai.entity.Submission;
 import com.securecode.ai.entity.User;
+import com.securecode.ai.evaluation.common.SecurityFindingEvidenceCodec;
 import com.securecode.ai.repository.FunctionalEvaluationRepository;
 import com.securecode.ai.repository.SecurityEvaluationRepository;
 import com.securecode.ai.repository.SubmissionRepository;
@@ -25,6 +26,7 @@ class SubmissionAnalysisServiceTests {
         SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
         FunctionalEvaluationRepository functionalEvaluations = Mockito.mock(FunctionalEvaluationRepository.class);
         SecurityEvaluationRepository securityEvaluations = Mockito.mock(SecurityEvaluationRepository.class);
+        SecurityFindingEvidenceCodec findingEvidenceCodec = Mockito.mock(SecurityFindingEvidenceCodec.class);
         Submission submission = Mockito.mock(Submission.class);
         User user = new User("student@example.com", "unused", Role.STUDENT);
         when(submission.getUser()).thenReturn(user);
@@ -35,7 +37,7 @@ class SubmissionAnalysisServiceTests {
                 null, null, "INFO", null, "{}", "COMPLETED", null)));
 
         SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
-                securityEvaluations).getForStudent(7L, "student@example.com");
+                securityEvaluations, findingEvidenceCodec).getForStudent(7L, "student@example.com");
 
         assertThat(response.overallDecision()).isEqualTo("SECURITY PASS");
         assertThat(response.assessment().evidenceState()).isEqualTo("STRONG SAFE EVIDENCE");
@@ -49,6 +51,7 @@ class SubmissionAnalysisServiceTests {
         SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
         FunctionalEvaluationRepository functionalEvaluations = Mockito.mock(FunctionalEvaluationRepository.class);
         SecurityEvaluationRepository securityEvaluations = Mockito.mock(SecurityEvaluationRepository.class);
+        SecurityFindingEvidenceCodec findingEvidenceCodec = Mockito.mock(SecurityFindingEvidenceCodec.class);
         Submission submission = Mockito.mock(Submission.class);
         when(submission.getUser()).thenReturn(new User("student@example.com", "unused", Role.STUDENT));
         when(submissions.findById(8L)).thenReturn(Optional.of(submission));
@@ -57,7 +60,7 @@ class SubmissionAnalysisServiceTests {
         when(securityEvaluations.findBySubmission_Id(8L)).thenReturn(List.of());
 
         SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
-                securityEvaluations).getForStudent(8L, "student@example.com");
+                securityEvaluations, findingEvidenceCodec).getForStudent(8L, "student@example.com");
 
         assertThat(response.overallDecision()).isEqualTo("NOT_AVAILABLE");
         assertThat(response.assessment().evidenceState()).isEqualTo("NOT_AVAILABLE");
