@@ -65,6 +65,8 @@ public class User {
     public String getName() { return name; }
     public void changeName(String name) { this.name = name; }
     public void changePasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public void changeRole(Role role) { this.role = role; }
+    public Instant getCreatedAt() { return createdAt; }
 
     public String getPasswordHash() {
         return passwordHash;

@@ -75,7 +75,7 @@ public class StudentDataService {
         return new SubmissionHistoryResponse(submission.getId(), submission.getChallenge().getId(), submission.getChallenge().getTitle(),
                 submission.getChallenge().getDifficulty().name(), submission.getAttemptNumber(), submission.getSubmittedAt(), functional,
                 submission.getRawAssessment(), submission.getLearningScore(), safePercent, completed == 0 ? 0 : 100 - safePercent,
-                historyEvidenceState(functional, submission.getRawAssessment(), completed));
+                historyEvidenceState(functional, evidence));
     }
 
     private int safeEvidencePercent(Submission submission) {
@@ -90,13 +90,17 @@ public class StudentDataService {
         return subtype == null || subtype.isBlank() ? "Unspecified" : subtype;
     }
 
-    private String historyEvidenceState(String functional, String assessment, int completedEvidence) {
+    private String historyEvidenceState(String functional, List<SecurityEvaluation> evidence) {
         if (!"PASS".equals(functional)) return "NOT_AVAILABLE";
+        int completedEvidence = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus())).count();
         if (completedEvidence == 0) return "NO SECURITY EVIDENCE";
-        if ("STRONG SAFE".equals(assessment)) return "STRONG SAFE EVIDENCE";
-        if ("STRONG VULNERABILITY".equals(assessment)) return "STRONG VULNERABILITY EVIDENCE";
-        if ("MOSTLY SAFE".equals(assessment)) return "MOSTLY SAFE — CONFLICT EXISTS";
-        return assessment == null || assessment.isBlank() ? "CONFLICTING EVIDENCE" : assessment;
+        int safe = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus()) && !e.isDetected()).count();
+        int vulnerable = completedEvidence - safe;
+        if (vulnerable == 0) return "STRONG SAFE EVIDENCE";
+        if (safe == 0) return "STRONG VULNERABILITY EVIDENCE";
+        if (safe > vulnerable) return "MOSTLY SAFE — CONFLICT EXISTS";
+        if (vulnerable > safe) return "MOSTLY VULNERABLE — CONFLICT EXISTS";
+        return "CONFLICTING EVIDENCE";
     }
 
     private User user(String email) {
