@@ -17,6 +17,7 @@ import java.util.List;
 @Table(name = "challenges")
 public class Challenge {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
+    @Column(name = "challenge_no", nullable = false, updatable = false) private long challengeNumber;
     @Column(nullable = false) private String title;
     @Column(nullable = false) private String description;
     @Column(nullable = false) private String language;
@@ -29,7 +30,8 @@ public class Challenge {
     private List<TestCase> testCases = new ArrayList<>();
 
     protected Challenge() { }
-    public Challenge(String title, String description, String language, String type, String subtype, String cwe, String starterCode, Difficulty difficulty) {
+    public Challenge(long challengeNumber, String title, String description, String language, String type, String subtype, String cwe, String starterCode, Difficulty difficulty) {
+        this.challengeNumber = challengeNumber;
         update(title, description, language, type, subtype, cwe, starterCode, difficulty);
     }
     public void update(String title, String description, String language, String type, String subtype, String cwe, String starterCode, Difficulty difficulty) {
@@ -39,6 +41,7 @@ public class Challenge {
     public void replaceTestCases(List<TestCase> newTestCases) { testCases.clear(); newTestCases.forEach(this::addTestCase); }
     private void addTestCase(TestCase testCase) { testCase.setChallenge(this); testCases.add(testCase); }
     public Long getId() { return id; }
+    public long getChallengeNumber() { return challengeNumber; }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
     public String getLanguage() { return language; }

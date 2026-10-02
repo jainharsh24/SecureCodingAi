@@ -62,7 +62,7 @@ class SubmissionAnalysisServiceTests {
         SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
                 securityEvaluations, findingEvidenceCodec).getForStudent(8L, "student@example.com");
 
-        assertThat(response.overallDecision()).isEqualTo("NOT_AVAILABLE");
-        assertThat(response.assessment().evidenceState()).isEqualTo("NOT_AVAILABLE");
+        assertThat(response.overallDecision()).isEqualTo("Functional Fail");
+        assertThat(response.assessment().evidenceState()).isEqualTo("Functional Fail");
     }
 }

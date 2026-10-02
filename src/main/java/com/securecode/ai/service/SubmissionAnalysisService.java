@@ -128,6 +128,8 @@ public class SubmissionAnalysisService {
     }
 
     private Assessment assessment(FunctionalEvaluationStatus functionalStatus, EvidenceSummaryResponse evidence) {
+        if (functionalStatus == FunctionalEvaluationStatus.FAIL) return new Assessment("Functional Fail", "Functional Fail");
+        if (functionalStatus == FunctionalEvaluationStatus.STARTER_CODE) return new Assessment("Submitted code is starter code", "INCOMPLETE ATTEMPT");
         if (functionalStatus != FunctionalEvaluationStatus.PASS) return new Assessment("NOT_AVAILABLE", "NOT_AVAILABLE");
         if (evidence.safeCount() + evidence.vulnerableCount() == 0) return new Assessment("NOT_AVAILABLE", "NO SECURITY EVIDENCE");
         if (evidence.vulnerableCount() == 0) return new Assessment("SECURITY PASS", "STRONG SAFE EVIDENCE");

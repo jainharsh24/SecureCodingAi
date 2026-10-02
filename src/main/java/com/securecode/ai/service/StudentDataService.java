@@ -53,7 +53,7 @@ public class StudentDataService {
         user(email);
         List<Submission> all = submissions.findByUser_EmailOrderBySubmittedAtDesc(email);
         List<LearningProgressPoint> progress = all.reversed().stream()
-                .map(s -> new LearningProgressPoint(s.getChallenge().getTitle(), s.getAttemptNumber(), s.getLearningScore(), s.getSubmittedAt()))
+                .map(s -> new LearningProgressPoint(s.getChallenge().getChallengeNumber(), s.getChallenge().getTitle(), s.getAttemptNumber(), s.getLearningScore(), s.getSubmittedAt()))
                 .toList();
         long passed = all.stream().filter(s -> functionals.findBySubmission_Id(s.getId())
                 .map(e -> "PASS".equals(e.getStatus().name())).orElse(false)).count();
@@ -72,7 +72,7 @@ public class StudentDataService {
         int safe = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus()) && !e.isDetected()).count();
         int safePercent = completed == 0 ? 0 : Math.round(safe * 100f / completed);
         String functional = functionals.findBySubmission_Id(submission.getId()).map(e -> e.getStatus().name()).orElse("NOT_AVAILABLE");
-        return new SubmissionHistoryResponse(submission.getId(), submission.getChallenge().getId(), submission.getChallenge().getTitle(),
+        return new SubmissionHistoryResponse(submission.getId(), submission.getChallenge().getId(), submission.getChallenge().getChallengeNumber(), submission.getChallenge().getTitle(),
                 submission.getChallenge().getDifficulty().name(), submission.getAttemptNumber(), submission.getSubmittedAt(), functional,
                 submission.getRawAssessment(), submission.getLearningScore(), safePercent, completed == 0 ? 0 : 100 - safePercent,
                 historyEvidenceState(functional, evidence));
@@ -91,6 +91,8 @@ public class StudentDataService {
     }
 
     private String historyEvidenceState(String functional, List<SecurityEvaluation> evidence) {
+        if ("FAIL".equals(functional)) return "Functional Fail";
+        if ("STARTER_CODE".equals(functional)) return "INCOMPLETE ATTEMPT";
         if (!"PASS".equals(functional)) return "NOT_AVAILABLE";
         int completedEvidence = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus())).count();
         if (completedEvidence == 0) return "NO SECURITY EVIDENCE";

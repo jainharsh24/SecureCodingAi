@@ -39,7 +39,7 @@ public class ChallengeService {
     }
     @Transactional
     public ChallengeResponse create(ChallengeRequest request) {
-        Challenge c = new Challenge(request.title(), request.description(), request.language(), request.vulnerabilityType(),
+        Challenge c = new Challenge(challengeRepository.nextChallengeNumber(), request.title(), request.description(), request.language(), request.vulnerabilityType(),
                 request.vulnerabilitySubtype(), request.cwe(), request.starterCode(), request.difficulty());
         c.replaceTestCases(toEntities(request.testCases()));
         return toResponse(challengeRepository.save(c), t -> true, null);
@@ -72,7 +72,7 @@ public class ChallengeService {
         int attempts = user == null ? 0 : (int) submissionRepository.countByUser_IdAndChallenge_Id(user.getId(), c.getId());
         boolean solved = user != null && submissionRepository.findByUser_EmailAndChallenge_IdOrderByAttemptNumberAsc(user.getEmail(), c.getId())
                 .stream().anyMatch(s -> s.getLearningScore() >= 90);
-        return new ChallengeResponse(c.getId(), c.getTitle(), c.getDescription(), c.getLanguage(), c.getVulnerabilityType(),
+        return new ChallengeResponse(c.getId(), c.getChallengeNumber(), c.getTitle(), c.getDescription(), c.getLanguage(), c.getVulnerabilityType(),
                 c.getVulnerabilitySubtype(), c.getCwe(), c.getStarterCode(), tests, c.getDifficulty().name(), attempts, Math.max(0, 5 - attempts), solved);
     }
 }

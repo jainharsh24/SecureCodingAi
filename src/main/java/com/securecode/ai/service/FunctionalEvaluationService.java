@@ -30,13 +30,15 @@ public class FunctionalEvaluationService {
     private final FunctionalEvaluationRepository evaluationRepository;
     private final Judge0Client judge0Client;
     private final SecurityEvaluationService securityEvaluationService;
+    private final JavaSourceEquivalence javaSourceEquivalence;
 
     public FunctionalEvaluationService(ChallengeRepository challengeRepository, UserRepository userRepository,
             SubmissionRepository submissionRepository, FunctionalEvaluationRepository evaluationRepository, Judge0Client judge0Client,
-            SecurityEvaluationService securityEvaluationService) {
+            SecurityEvaluationService securityEvaluationService, JavaSourceEquivalence javaSourceEquivalence) {
         this.challengeRepository = challengeRepository; this.userRepository = userRepository;
         this.submissionRepository = submissionRepository; this.evaluationRepository = evaluationRepository; this.judge0Client = judge0Client;
         this.securityEvaluationService = securityEvaluationService;
+        this.javaSourceEquivalence = javaSourceEquivalence;
     }
 
     @Transactional
@@ -48,6 +50,9 @@ public class FunctionalEvaluationService {
         long previousAttempts = submissionRepository.countByUser_IdAndChallenge_Id(user.getId(), challengeId);
         if (previousAttempts >= 5) throw new ResponseStatusException(HttpStatus.CONFLICT, "Attempt limit reached: each user may submit a challenge at most 5 times");
         Submission submission = submissionRepository.save(new Submission(user, challenge, request.sourceCode(), (int) previousAttempts + 1));
+        if (isUnchangedStarter(challenge, request.sourceCode())) {
+            return saveResult(submission, FunctionalEvaluationStatus.STARTER_CODE, 0, 0, "Submitted code is starter code");
+        }
         List<TestCase> testCases = challenge.getTestCases().stream()
                 .sorted(Comparator.comparingInt(TestCase::getPosition)).toList();
         if (testCases.isEmpty()) return saveResult(submission, FunctionalEvaluationStatus.EVALUATION_ERROR, 0, 0,
@@ -68,6 +73,14 @@ public class FunctionalEvaluationService {
         }
         FunctionalEvaluationStatus status = passed == testCases.size() ? FunctionalEvaluationStatus.PASS : FunctionalEvaluationStatus.FAIL;
         return saveResult(submission, status, passed, testCases.size(), firstFailure);
+    }
+
+    private boolean isUnchangedStarter(Challenge challenge, String submittedCode) {
+        String starterCode = challenge.getStarterCode();
+        if (starterCode == null || starterCode.isBlank()) return false;
+        return "java".equalsIgnoreCase(challenge.getLanguage())
+                ? javaSourceEquivalence.equivalent(starterCode, submittedCode)
+                : starterCode.equals(submittedCode);
     }
 
     private FunctionalEvaluationResponse saveResult(Submission submission, FunctionalEvaluationStatus status,
