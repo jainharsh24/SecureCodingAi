@@ -1,6 +1,6 @@
 package com.securecode.ai.evaluation.spotbugs;
 
-import com.securecode.ai.config.SpotBugsProperties;
+import com.securecode.ai.evaluation.spotbugs.config.SpotBugsProperties;
 import com.securecode.ai.evaluation.SecurityEvaluationStatus;
 import com.securecode.ai.evaluation.SecurityFinding;
 import java.io.IOException;

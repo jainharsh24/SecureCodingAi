@@ -1,26 +1,3 @@
-#rules:
-#  - id: securecode.java.command-injection.runtime-exec
-#    languages: [java]
-#    severity: ERROR
-#    message: Untrusted data passed to Runtime.exec can cause command injection. Avoid shell command construction and use a safe, fixed command allowlist.
-#    metadata:
-#      cwe: CWE-78
-#      vulnerability_type: COMMAND_INJECTION
-#    patterns:
-#      - pattern: Runtime.getRuntime().exec($COMMAND)
-#
-#  - id: securecode.java.sql-injection.statement-concatenation
-#    languages: [java]
-#    severity: ERROR
-#    message: SQL built by string concatenation can cause SQL injection. Use parameterized queries (PreparedStatement) instead.
-#    metadata:
-#      cwe: CWE-89
-#      vulnerability_type: SQL_INJECTION
-#    pattern-either:
-#      - pattern: $STATEMENT.executeQuery("..." + $VALUE + "...")
-#      - pattern: $STATEMENT.executeUpdate("..." + $VALUE + "...")
-#      - pattern: $STATEMENT.execute("..." + $VALUE + "...")
-
 rules:
 
   # ============================================================

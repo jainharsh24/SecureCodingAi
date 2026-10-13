@@ -1,4 +1,4 @@
-package com.securecode.ai.evaluation.normalization;
+package com.securecode.ai.evaluation.semgrep.normalization;
 
 public record NormalizedSecurityFinding(
         boolean detected,

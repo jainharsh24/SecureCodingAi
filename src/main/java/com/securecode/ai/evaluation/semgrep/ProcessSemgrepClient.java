@@ -1,6 +1,8 @@
-package com.securecode.ai.evaluation;
+package com.securecode.ai.evaluation.semgrep;
 
-import com.securecode.ai.config.SemgrepProperties;
+import com.securecode.ai.evaluation.SecurityEvaluationStatus;
+import com.securecode.ai.evaluation.SecurityFinding;
+import com.securecode.ai.evaluation.semgrep.config.SemgrepProperties;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

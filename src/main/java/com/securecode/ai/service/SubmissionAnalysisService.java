@@ -6,6 +6,7 @@ import com.securecode.ai.dto.EvaluatorFindingsResponse;
 import com.securecode.ai.dto.EvidenceSummaryResponse;
 import com.securecode.ai.dto.SecurityFindingDisplayResponse;
 import com.securecode.ai.dto.SubmissionAnalysisResponse;
+import com.securecode.ai.dto.SubmissionContextResponse;
 import com.securecode.ai.evaluation.common.SecurityFindingEvidenceCodec;
 import com.securecode.ai.evaluation.common.StoredSecurityFinding;
 import com.securecode.ai.entity.FunctionalEvaluation;
@@ -73,7 +74,9 @@ public class SubmissionAnalysisService {
         EvidenceSummaryResponse evidence = evidenceSummary(securityByEvaluator.values());
         Assessment assessment = assessment(functional.getStatus(), evidence);
         return new SubmissionAnalysisResponse(submissionId, assessment.overallDecision(), evaluators, evidence,
-                new AssessmentResponse(assessment.evidenceState()), findingGroups(securityByEvaluator));
+                new AssessmentResponse(assessment.evidenceState()), findingGroups(securityByEvaluator),
+                new SubmissionContextResponse(submission.getChallenge().getChallengeNumber(), submission.getChallenge().getTitle(),
+                        submission.getChallenge().getDescription(), submission.getLanguage(), submission.getSourceCode()));
     }
 
     private List<EvaluatorFindingsResponse> findingGroups(Map<String, SecurityEvaluation> securityByEvaluator) {

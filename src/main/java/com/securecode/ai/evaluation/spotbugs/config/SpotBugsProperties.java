@@ -1,4 +1,4 @@
-package com.securecode.ai.config;
+package com.securecode.ai.evaluation.spotbugs.config;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;

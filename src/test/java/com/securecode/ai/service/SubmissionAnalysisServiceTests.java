@@ -6,6 +6,8 @@ import static org.mockito.Mockito.when;
 import com.securecode.ai.dto.SubmissionAnalysisResponse;
 import com.securecode.ai.entity.FunctionalEvaluation;
 import com.securecode.ai.entity.FunctionalEvaluationStatus;
+import com.securecode.ai.entity.Challenge;
+import com.securecode.ai.entity.Difficulty;
 import com.securecode.ai.entity.Role;
 import com.securecode.ai.entity.SecurityEvaluation;
 import com.securecode.ai.entity.Submission;
@@ -28,8 +30,12 @@ class SubmissionAnalysisServiceTests {
         SecurityEvaluationRepository securityEvaluations = Mockito.mock(SecurityEvaluationRepository.class);
         SecurityFindingEvidenceCodec findingEvidenceCodec = Mockito.mock(SecurityFindingEvidenceCodec.class);
         Submission submission = Mockito.mock(Submission.class);
+        Challenge challenge = new Challenge(12, "Saved challenge", "Original full description", "java", null, null, null, null, Difficulty.MEDIUM);
         User user = new User("student@example.com", "unused", Role.STUDENT);
         when(submission.getUser()).thenReturn(user);
+        when(submission.getChallenge()).thenReturn(challenge);
+        when(submission.getLanguage()).thenReturn("java");
+        when(submission.getSourceCode()).thenReturn("class Main { }");
         when(submissions.findById(7L)).thenReturn(Optional.of(submission));
         when(functionalEvaluations.findBySubmission_Id(7L))
                 .thenReturn(Optional.of(new FunctionalEvaluation(submission, FunctionalEvaluationStatus.PASS, 2, 2, null)));
@@ -42,6 +48,11 @@ class SubmissionAnalysisServiceTests {
         assertThat(response.overallDecision()).isEqualTo("SECURITY PASS");
         assertThat(response.assessment().evidenceState()).isEqualTo("STRONG SAFE EVIDENCE");
         assertThat(response.evidenceSummary().safeEvidencePercent()).isEqualTo(100);
+        assertThat(response.submissionContext()).satisfies(context -> {
+            assertThat(context.challengeNumber()).isEqualTo(12);
+            assertThat(context.challengeDescription()).isEqualTo("Original full description");
+            assertThat(context.submittedCode()).isEqualTo("class Main { }");
+        });
         assertThat(response.evaluators()).extracting(item -> item.evaluator() + ":" + item.result())
                 .containsExactly("JUDGE0:PASS", "SEMGREP:SAFE", "PMD:NOT_AVAILABLE", "SPOTBUGS:NOT_AVAILABLE", "LLM:NOT_AVAILABLE");
     }
@@ -53,7 +64,11 @@ class SubmissionAnalysisServiceTests {
         SecurityEvaluationRepository securityEvaluations = Mockito.mock(SecurityEvaluationRepository.class);
         SecurityFindingEvidenceCodec findingEvidenceCodec = Mockito.mock(SecurityFindingEvidenceCodec.class);
         Submission submission = Mockito.mock(Submission.class);
+        Challenge challenge = new Challenge(13, "Failed challenge", "Full description", "java", null, null, null, null, Difficulty.EASY);
         when(submission.getUser()).thenReturn(new User("student@example.com", "unused", Role.STUDENT));
+        when(submission.getChallenge()).thenReturn(challenge);
+        when(submission.getLanguage()).thenReturn("java");
+        when(submission.getSourceCode()).thenReturn("class Main { }");
         when(submissions.findById(8L)).thenReturn(Optional.of(submission));
         when(functionalEvaluations.findBySubmission_Id(8L))
                 .thenReturn(Optional.of(new FunctionalEvaluation(submission, FunctionalEvaluationStatus.FAIL, 1, 2, null)));

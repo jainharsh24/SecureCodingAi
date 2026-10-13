@@ -1,4 +1,4 @@
-package com.securecode.ai.evaluation.normalization;
+package com.securecode.ai.evaluation.semgrep.normalization;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.securecode.ai.evaluation.SecurityEvaluationStatus;
 import com.securecode.ai.evaluation.SecurityFinding;
-import com.securecode.ai.evaluation.SemgrepScanResult;
+import com.securecode.ai.evaluation.semgrep.SemgrepScanResult;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

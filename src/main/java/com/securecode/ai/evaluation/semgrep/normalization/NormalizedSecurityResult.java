@@ -1,4 +1,4 @@
-package com.securecode.ai.evaluation.normalization;
+package com.securecode.ai.evaluation.semgrep.normalization;
 
 import com.securecode.ai.evaluation.SecurityEvaluationStatus;
 import java.util.List;

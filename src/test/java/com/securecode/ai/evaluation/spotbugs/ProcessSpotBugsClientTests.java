@@ -2,7 +2,7 @@ package com.securecode.ai.evaluation.spotbugs;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.securecode.ai.config.SpotBugsProperties;
+import com.securecode.ai.evaluation.spotbugs.config.SpotBugsProperties;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;

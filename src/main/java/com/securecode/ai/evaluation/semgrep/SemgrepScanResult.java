@@ -1,5 +1,7 @@
-package com.securecode.ai.evaluation;
+package com.securecode.ai.evaluation.semgrep;
 
+import com.securecode.ai.evaluation.SecurityEvaluationStatus;
+import com.securecode.ai.evaluation.SecurityFinding;
 import java.util.List;
 
 public record SemgrepScanResult(

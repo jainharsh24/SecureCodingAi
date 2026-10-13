@@ -1,7 +1,7 @@
-package com.securecode.ai.evaluation.normalization;
+package com.securecode.ai.evaluation.semgrep.normalization;
 
 import com.securecode.ai.evaluation.SecurityFinding;
-import com.securecode.ai.evaluation.SemgrepScanResult;
+import com.securecode.ai.evaluation.semgrep.SemgrepScanResult;
 import org.springframework.stereotype.Component;
 
 @Component

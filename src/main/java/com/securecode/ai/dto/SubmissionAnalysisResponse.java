@@ -3,7 +3,8 @@ package com.securecode.ai.dto;
 import java.util.List;
 
 public record SubmissionAnalysisResponse(Long submissionId, String overallDecision, List<EvaluatorResultResponse> evaluators,
-        EvidenceSummaryResponse evidenceSummary, AssessmentResponse assessment, List<EvaluatorFindingsResponse> findings) {
+        EvidenceSummaryResponse evidenceSummary, AssessmentResponse assessment, List<EvaluatorFindingsResponse> findings,
+        SubmissionContextResponse submissionContext) {
     public SubmissionAnalysisResponse {
         evaluators = List.copyOf(evaluators);
         findings = List.copyOf(findings);

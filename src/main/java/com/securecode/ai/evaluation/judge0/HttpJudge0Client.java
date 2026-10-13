@@ -1,6 +1,6 @@
-package com.securecode.ai.evaluation;
+package com.securecode.ai.evaluation.judge0;
 
-import com.securecode.ai.config.Judge0Properties;
+import com.securecode.ai.evaluation.judge0.config.Judge0Properties;
 import java.util.Locale;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;

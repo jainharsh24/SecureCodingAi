@@ -1,6 +1,6 @@
 package com.securecode.ai.dto;
 
-import com.securecode.ai.evaluation.normalization.NormalizedSecurityResult;
+import com.securecode.ai.evaluation.semgrep.normalization.NormalizedSecurityResult;
 import java.util.List;
 
 public record SecurityEvaluationResponse(String evaluator, String status, boolean detected,

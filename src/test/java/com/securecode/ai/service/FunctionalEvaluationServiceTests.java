@@ -13,7 +13,7 @@ import com.securecode.ai.entity.Difficulty;
 import com.securecode.ai.entity.Role;
 import com.securecode.ai.entity.Submission;
 import com.securecode.ai.entity.User;
-import com.securecode.ai.evaluation.Judge0Client;
+import com.securecode.ai.evaluation.judge0.Judge0Client;
 import com.securecode.ai.repository.ChallengeRepository;
 import com.securecode.ai.repository.FunctionalEvaluationRepository;
 import com.securecode.ai.repository.SubmissionRepository;
