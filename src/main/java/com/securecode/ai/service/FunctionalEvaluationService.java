@@ -45,6 +45,9 @@ public class FunctionalEvaluationService {
     public FunctionalEvaluationResponse submitAndEvaluate(Long challengeId, String email, SubmissionRequest request) {
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Challenge not found"));
+        if (!challenge.isActive()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Challenge is no longer in the active catalog");
+        }
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
         long previousAttempts = submissionRepository.countByUser_IdAndChallenge_Id(user.getId(), challengeId);

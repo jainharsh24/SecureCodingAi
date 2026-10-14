@@ -29,7 +29,7 @@ public class ChallengeService {
     @Transactional(readOnly = true)
     public List<ChallengeResponse> getAllForStudent(String email) {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
-        return challengeRepository.findAll().stream().map(c -> toResponse(c, testCaseVisibilityFor(user), user)).toList();
+        return challengeRepository.findByActiveTrueOrderByChallengeNumberAsc().stream().map(c -> toResponse(c, testCaseVisibilityFor(user), user)).toList();
     }
     @Transactional(readOnly = true)
     public ChallengeResponse getByIdForStudent(Long id, String email) {

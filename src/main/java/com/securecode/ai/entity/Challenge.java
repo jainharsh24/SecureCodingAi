@@ -25,6 +25,8 @@ public class Challenge {
     @Column(name = "vulnerability_subtype") private String vulnerabilitySubtype;
     private String cwe;
     @Column(name = "starter_code") private String starterCode;
+    @Column(name = "secure_reference_code") private String secureReferenceCode;
+    @Column(name = "is_active", nullable = false) private boolean active = true;
     @Enumerated(EnumType.STRING) @Column(nullable = false) private Difficulty difficulty = Difficulty.MEDIUM;
     @OneToMany(mappedBy = "challenge", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TestCase> testCases = new ArrayList<>();
@@ -49,6 +51,8 @@ public class Challenge {
     public String getVulnerabilitySubtype() { return vulnerabilitySubtype; }
     public String getCwe() { return cwe; }
     public String getStarterCode() { return starterCode; }
+    public String getSecureReferenceCode() { return secureReferenceCode; }
+    public boolean isActive() { return active; }
     public Difficulty getDifficulty() { return difficulty; }
     public List<TestCase> getTestCases() { return List.copyOf(testCases); }
 }
