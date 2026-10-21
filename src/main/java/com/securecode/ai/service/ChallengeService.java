@@ -12,6 +12,7 @@ import com.securecode.ai.repository.SubmissionRepository;
 import com.securecode.ai.entity.User;
 import com.securecode.ai.repository.UserRepository;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 import org.springframework.http.HttpStatus;
@@ -29,20 +30,36 @@ public class ChallengeService {
     @Transactional(readOnly = true)
     public List<ChallengeResponse> getAllForStudent(String email) {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
-        return challengeRepository.findByActiveTrueOrderByChallengeNumberAsc().stream().map(c -> toResponse(c, testCaseVisibilityFor(user), user)).toList();
+        List<ChallengeResponse> catalog = new ArrayList<>();
+        List<Challenge> activeChallenges = challengeRepository.findByActiveTrueOrderByChallengeNumberAsc();
+        for (int index = 0; index < activeChallenges.size(); index++) {
+            catalog.add(toResponse(activeChallenges.get(index), testCaseVisibilityFor(user), user, index + 1));
+        }
+        return List.copyOf(catalog);
     }
     @Transactional(readOnly = true)
     public ChallengeResponse getByIdForStudent(Long id, String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
-        return toResponse(findChallenge(id), testCaseVisibilityFor(user), user);
+        Challenge challenge = findChallenge(id);
+        Integer catalogNumber = null;
+        if (challenge.isActive()) {
+            List<Challenge> activeChallenges = challengeRepository.findByActiveTrueOrderByChallengeNumberAsc();
+            for (int index = 0; index < activeChallenges.size(); index++) {
+                if (activeChallenges.get(index).getId().equals(challenge.getId())) {
+                    catalogNumber = index + 1;
+                    break;
+                }
+            }
+        }
+        return toResponse(challenge, testCaseVisibilityFor(user), user, catalogNumber);
     }
     @Transactional
     public ChallengeResponse create(ChallengeRequest request) {
         Challenge c = new Challenge(challengeRepository.nextChallengeNumber(), request.title(), request.description(), request.language(), request.vulnerabilityType(),
                 request.vulnerabilitySubtype(), request.cwe(), request.starterCode(), request.difficulty());
         c.replaceTestCases(toEntities(request.testCases()));
-        return toResponse(challengeRepository.save(c), t -> true, null);
+        return toResponse(challengeRepository.save(c), t -> true, null, null);
     }
     @Transactional
     public ChallengeResponse update(Long id, ChallengeRequest request) {
@@ -50,7 +67,7 @@ public class ChallengeService {
         c.update(request.title(), request.description(), request.language(), request.vulnerabilityType(),
                 request.vulnerabilitySubtype(), request.cwe(), request.starterCode(), request.difficulty());
         c.replaceTestCases(toEntities(request.testCases()));
-        return toResponse(c, t -> true, null);
+        return toResponse(c, t -> true, null, null);
     }
     @Transactional
     public void delete(Long id) { challengeRepository.delete(findChallenge(id)); }
@@ -65,14 +82,14 @@ public class ChallengeService {
     private Predicate<TestCase> testCaseVisibilityFor(User user) {
         return user.getRole() == Role.ADMIN ? testCase -> true : testCase -> !testCase.isHidden();
     }
-    private ChallengeResponse toResponse(Challenge c, Predicate<TestCase> include, User user) {
+    private ChallengeResponse toResponse(Challenge c, Predicate<TestCase> include, User user, Integer catalogNumber) {
         List<TestCaseResponse> tests = c.getTestCases().stream().filter(include)
                 .sorted(Comparator.comparingInt(TestCase::getPosition))
                 .map(t -> new TestCaseResponse(t.getId(), t.getInputData(), t.getExpectedOutput(), t.isHidden(), t.getPosition())).toList();
         int attempts = user == null ? 0 : (int) submissionRepository.countByUser_IdAndChallenge_Id(user.getId(), c.getId());
         boolean solved = user != null && submissionRepository.findByUser_EmailAndChallenge_IdOrderByAttemptNumberAsc(user.getEmail(), c.getId())
                 .stream().anyMatch(s -> s.getLearningScore() >= 90);
-        return new ChallengeResponse(c.getId(), c.getChallengeNumber(), c.getTitle(), c.getDescription(), c.getLanguage(), c.getVulnerabilityType(),
+        return new ChallengeResponse(c.getId(), c.getChallengeNumber(), catalogNumber, c.getTitle(), c.getDescription(), c.getLanguage(), c.getVulnerabilityType(),
                 c.getVulnerabilitySubtype(), c.getCwe(), c.getStarterCode(), tests, c.getDifficulty().name(), attempts, Math.max(0, 5 - attempts), solved);
     }
 }

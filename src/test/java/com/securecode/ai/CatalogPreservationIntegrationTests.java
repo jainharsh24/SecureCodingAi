@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.securecode.ai.entity.Submission;
 import com.securecode.ai.repository.ChallengeRepository;
 import com.securecode.ai.repository.SubmissionRepository;
+import com.securecode.ai.repository.UserRepository;
+import com.securecode.ai.service.ChallengeService;
 import com.securecode.ai.service.SubmissionAnalysisService;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,7 +26,9 @@ class CatalogPreservationIntegrationTests {
 
     @Autowired private ChallengeRepository challenges;
     @Autowired private SubmissionRepository submissions;
+    @Autowired private UserRepository users;
     @Autowired private SubmissionAnalysisService analysis;
+    @Autowired private ChallengeService challengeService;
     @TempDir Path temporaryDirectory;
 
     @Test
@@ -40,6 +44,17 @@ class CatalogPreservationIntegrationTests {
         });
         assertThat(active).extracting(challenge -> challenge.getVulnerabilitySubtype())
                 .containsExactlyInAnyOrderElementsOf(ACTIVE_TYPES);
+    }
+
+    @Test
+    void activeCatalogUsesDisplayNumbersOneThroughTwelveWithoutChangingStoredNumbers() {
+        String email = users.findAll().getFirst().getEmail();
+        var catalog = challengeService.getAllForStudent(email);
+
+        assertThat(catalog).extracting(response -> response.catalogNumber())
+                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+        assertThat(catalog).extracting(response -> response.challengeNumber())
+                .containsExactly(13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L);
     }
 
     @Test
