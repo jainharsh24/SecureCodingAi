@@ -25,6 +25,7 @@ public class FunctionalEvaluation {
         this.submission = submission; this.status = status; this.passedTests = passedTests; this.totalTests = totalTests; this.details = details;
     }
     public Long getSubmissionId() { return submission.getId(); }
+    public Submission getSubmission() { return submission; }
     public FunctionalEvaluationStatus getStatus() { return status; }
     public int getPassedTests() { return passedTests; }
     public int getTotalTests() { return totalTests; }

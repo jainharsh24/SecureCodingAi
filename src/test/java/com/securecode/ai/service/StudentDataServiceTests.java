@@ -15,12 +15,41 @@ import com.securecode.ai.repository.FunctionalEvaluationRepository;
 import com.securecode.ai.repository.SecurityEvaluationRepository;
 import com.securecode.ai.repository.SubmissionRepository;
 import com.securecode.ai.repository.UserRepository;
+import com.securecode.ai.repository.ChallengeRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class StudentDataServiceTests {
+
+    @Test
+    void analyticsForANewUserHasZeroProgressAndZeroAttemptAccuracy() {
+        UserRepository users = Mockito.mock(UserRepository.class);
+        SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
+        FunctionalEvaluationRepository functionals = Mockito.mock(FunctionalEvaluationRepository.class);
+        SecurityEvaluationRepository securities = Mockito.mock(SecurityEvaluationRepository.class);
+        ChallengeRepository challenges = Mockito.mock(ChallengeRepository.class);
+        Challenge challenge = Mockito.mock(Challenge.class);
+        when(users.findByEmail("new@example.test")).thenReturn(Optional.of(new User("new@example.test", "hash", Role.STUDENT)));
+        when(submissions.findByUser_EmailOrderBySubmittedAtDesc("new@example.test")).thenReturn(List.of());
+        when(functionals.findBySubmission_User_Email("new@example.test")).thenReturn(List.of());
+        when(challenge.getId()).thenReturn(1L);
+        when(challenge.getTitle()).thenReturn("Start here");
+        when(challenge.getDifficulty()).thenReturn(Difficulty.BASIC);
+        when(challenge.getPrerequisites()).thenReturn(List.of());
+        when(challenge.getVulnerabilitySubtype()).thenReturn("SQL basics");
+        when(challenges.findByActiveTrueOrderByChallengeNumberAsc()).thenReturn(List.of(challenge));
+
+        var analytics = new StudentDataService(users, submissions, functionals, securities, challenges).analytics("new@example.test");
+
+        assertThat(analytics.totalActiveChallenges()).isEqualTo(1);
+        assertThat(analytics.challengesAttempted()).isZero();
+        assertThat(analytics.totalQuestionsSolved()).isZero();
+        assertThat(analytics.completionPercent()).isZero();
+        assertThat(analytics.accuracyByDifficulty()).allSatisfy(item -> assertThat(item.accuracyPercent()).isZero());
+        assertThat(analytics.challengeProgress()).singleElement().satisfies(item -> assertThat(item.status()).isEqualTo("NOT_STARTED"));
+    }
 
     @Test
     void reportsConflictingEvidenceForAnEvenSafeVulnerableSplit() {
