@@ -2,6 +2,7 @@ package com.securecode.ai.controller;
 
 import com.securecode.ai.dto.ChallengeRequest;
 import com.securecode.ai.dto.ChallengeResponse;
+import com.securecode.ai.dto.PrerequisiteAccessResponse;
 import com.securecode.ai.service.ChallengeService;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -25,6 +26,7 @@ public class ChallengeController {
     public ChallengeController(ChallengeService challengeService) { this.challengeService = challengeService; }
     @GetMapping public List<ChallengeResponse> getAll(Authentication authentication) { return challengeService.getAllForStudent(authentication.getName()); }
     @GetMapping("/{id}") public ChallengeResponse getById(@PathVariable Long id, Authentication authentication) { return challengeService.getByIdForStudent(id, authentication.getName()); }
+    @GetMapping("/{id}/prerequisites") public PrerequisiteAccessResponse prerequisites(@PathVariable Long id, Authentication authentication) { return challengeService.prerequisiteStatus(id, authentication.getName()); }
     @PostMapping public ResponseEntity<ChallengeResponse> create(@Valid @RequestBody ChallengeRequest request) {
         ChallengeResponse response = challengeService.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).location(URI.create("/challenges/" + response.id())).body(response);

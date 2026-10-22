@@ -31,14 +31,16 @@ public class FunctionalEvaluationService {
     private final Judge0Client judge0Client;
     private final SecurityEvaluationService securityEvaluationService;
     private final JavaSourceEquivalence javaSourceEquivalence;
+    private final PrerequisiteAccessService prerequisiteAccess;
 
     public FunctionalEvaluationService(ChallengeRepository challengeRepository, UserRepository userRepository,
             SubmissionRepository submissionRepository, FunctionalEvaluationRepository evaluationRepository, Judge0Client judge0Client,
-            SecurityEvaluationService securityEvaluationService, JavaSourceEquivalence javaSourceEquivalence) {
+            SecurityEvaluationService securityEvaluationService, JavaSourceEquivalence javaSourceEquivalence, PrerequisiteAccessService prerequisiteAccess) {
         this.challengeRepository = challengeRepository; this.userRepository = userRepository;
         this.submissionRepository = submissionRepository; this.evaluationRepository = evaluationRepository; this.judge0Client = judge0Client;
         this.securityEvaluationService = securityEvaluationService;
         this.javaSourceEquivalence = javaSourceEquivalence;
+        this.prerequisiteAccess = prerequisiteAccess;
     }
 
     @Transactional
@@ -50,6 +52,7 @@ public class FunctionalEvaluationService {
         }
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
+        prerequisiteAccess.requireAccess(user, challenge, java.util.Map.of());
         long previousAttempts = submissionRepository.countByUser_IdAndChallenge_Id(user.getId(), challengeId);
         if (previousAttempts >= 5) throw new ResponseStatusException(HttpStatus.CONFLICT, "Attempt limit reached: each user may submit a challenge at most 5 times");
         Submission submission = submissionRepository.save(new Submission(user, challenge, request.sourceCode(), (int) previousAttempts + 1));

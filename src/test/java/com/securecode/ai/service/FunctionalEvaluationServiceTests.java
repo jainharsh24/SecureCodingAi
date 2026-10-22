@@ -30,6 +30,7 @@ class FunctionalEvaluationServiceTests {
         FunctionalEvaluationRepository evaluations = mock(FunctionalEvaluationRepository.class);
         Judge0Client judge0 = mock(Judge0Client.class);
         SecurityEvaluationService security = mock(SecurityEvaluationService.class);
+        PrerequisiteAccessService prerequisites = mock(PrerequisiteAccessService.class);
         Challenge challenge = new Challenge(1, "Example", "Description", "java", "Injection Attack", "SQL", "CWE-89",
                 "class Main { // starter\n public static void main(String[] args) { } }", Difficulty.EASY);
         User user = new User("student@example.com", "unused", Role.STUDENT);
@@ -40,7 +41,7 @@ class FunctionalEvaluationServiceTests {
         doAnswer(invocation -> invocation.getArgument(0)).when(evaluations).save(any());
 
         FunctionalEvaluationService service = new FunctionalEvaluationService(challenges, users, submissions, evaluations,
-                judge0, security, new JavaSourceEquivalence());
+                judge0, security, new JavaSourceEquivalence(), prerequisites);
         var response = service.submitAndEvaluate(1L, "student@example.com",
                 new SubmissionRequest("class Main { public static void main(String[] args) { } }"));
 

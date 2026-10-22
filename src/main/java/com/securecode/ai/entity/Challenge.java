@@ -7,11 +7,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.LinkedHashSet;
 
 @Entity
 @Table(name = "challenges")
@@ -30,6 +35,10 @@ public class Challenge {
     @Enumerated(EnumType.STRING) @Column(nullable = false) private Difficulty difficulty = Difficulty.MEDIUM;
     @OneToMany(mappedBy = "challenge", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TestCase> testCases = new ArrayList<>();
+    @ManyToMany
+    @JoinTable(name = "challenge_prerequisites", joinColumns = @JoinColumn(name = "challenge_id"),
+            inverseJoinColumns = @JoinColumn(name = "prerequisite_challenge_id"))
+    private Set<Challenge> prerequisites = new LinkedHashSet<>();
 
     protected Challenge() { }
     public Challenge(long challengeNumber, String title, String description, String language, String type, String subtype, String cwe, String starterCode, Difficulty difficulty) {
@@ -55,4 +64,5 @@ public class Challenge {
     public boolean isActive() { return active; }
     public Difficulty getDifficulty() { return difficulty; }
     public List<TestCase> getTestCases() { return List.copyOf(testCases); }
+    public List<Challenge> getPrerequisites() { return List.copyOf(prerequisites); }
 }

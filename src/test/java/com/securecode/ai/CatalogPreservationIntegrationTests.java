@@ -32,10 +32,10 @@ class CatalogPreservationIntegrationTests {
     @TempDir Path temporaryDirectory;
 
     @Test
-    void exposesOnlyTheTwelveActiveInjectionChallenges() {
+    void exposesTheOriginalInjectionCatalogAndTwelveBasicPrerequisites() {
         var active = challenges.findByActiveTrueOrderByChallengeNumberAsc();
 
-        assertThat(active).hasSize(12);
+        assertThat(active).hasSize(45);
         assertThat(active).allSatisfy(challenge -> {
             assertThat(challenge.getDescription()).isNotBlank();
             assertThat(challenge.getStarterCode()).isNotBlank();
@@ -43,18 +43,20 @@ class CatalogPreservationIntegrationTests {
             assertThat(challenge.getTestCases()).isNotEmpty();
         });
         assertThat(active).extracting(challenge -> challenge.getVulnerabilitySubtype())
-                .containsExactlyInAnyOrderElementsOf(ACTIVE_TYPES);
+                .containsAll(ACTIVE_TYPES);
+        assertThat(active).filteredOn(challenge -> challenge.getDifficulty().name().equals("BASIC"))
+                .hasSize(16);
     }
 
     @Test
-    void activeCatalogUsesDisplayNumbersOneThroughTwelveWithoutChangingStoredNumbers() {
+    void activeCatalogUsesDisplayNumbersOneThroughFortyFiveWithoutChangingStoredNumbers() {
         String email = users.findAll().getFirst().getEmail();
         var catalog = challengeService.getAllForStudent(email);
 
         assertThat(catalog).extracting(response -> response.catalogNumber())
-                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+                .containsExactly(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45);
         assertThat(catalog).extracting(response -> response.challengeNumber())
-                .containsExactly(13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L);
+                .containsExactly(13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L, 49L, 50L, 51L, 52L, 53L, 54L, 55L, 56L, 57L);
     }
 
     @Test
