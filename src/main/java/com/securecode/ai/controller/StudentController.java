@@ -30,6 +30,7 @@ public class StudentController {
 
     @GetMapping("/summary") public UserSummaryResponse summary(Authentication auth) { return studentData.summary(auth.getName()); }
     @GetMapping("/history") public List<SubmissionHistoryResponse> history(Authentication auth) { return studentData.history(auth.getName()); }
+    @GetMapping("/challenges/{challengeId}/attempts") public List<SubmissionHistoryResponse> challengeAttempts(@org.springframework.web.bind.annotation.PathVariable Long challengeId, Authentication auth) { return studentData.challengeAttempts(auth.getName(), challengeId); }
     @GetMapping("/analytics") public StudentAnalyticsResponse analytics(Authentication auth) { return studentData.analytics(auth.getName()); }
     @PutMapping("/profile") public UserSummaryResponse updateProfile(Authentication auth, @Valid @RequestBody UpdateProfileRequest request) {
         User user = current(auth); user.changeName(request.name().trim()); users.save(user); return studentData.summary(auth.getName());

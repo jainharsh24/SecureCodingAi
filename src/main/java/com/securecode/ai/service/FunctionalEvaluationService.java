@@ -32,15 +32,18 @@ public class FunctionalEvaluationService {
     private final SecurityEvaluationService securityEvaluationService;
     private final JavaSourceEquivalence javaSourceEquivalence;
     private final PrerequisiteAccessService prerequisiteAccess;
+    private final AttemptWindowService attemptWindows;
 
     public FunctionalEvaluationService(ChallengeRepository challengeRepository, UserRepository userRepository,
             SubmissionRepository submissionRepository, FunctionalEvaluationRepository evaluationRepository, Judge0Client judge0Client,
-            SecurityEvaluationService securityEvaluationService, JavaSourceEquivalence javaSourceEquivalence, PrerequisiteAccessService prerequisiteAccess) {
+            SecurityEvaluationService securityEvaluationService, JavaSourceEquivalence javaSourceEquivalence, PrerequisiteAccessService prerequisiteAccess,
+            AttemptWindowService attemptWindows) {
         this.challengeRepository = challengeRepository; this.userRepository = userRepository;
         this.submissionRepository = submissionRepository; this.evaluationRepository = evaluationRepository; this.judge0Client = judge0Client;
         this.securityEvaluationService = securityEvaluationService;
         this.javaSourceEquivalence = javaSourceEquivalence;
         this.prerequisiteAccess = prerequisiteAccess;
+        this.attemptWindows = attemptWindows;
     }
 
     @Transactional
@@ -53,12 +56,12 @@ public class FunctionalEvaluationService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found"));
         prerequisiteAccess.requireAccess(user, challenge, java.util.Map.of());
-        long previousAttempts = submissionRepository.countByUser_IdAndChallenge_Id(user.getId(), challengeId);
-        if (previousAttempts >= 5) throw new ResponseStatusException(HttpStatus.CONFLICT, "Attempt limit reached: each user may submit a challenge at most 5 times");
-        Submission submission = submissionRepository.save(new Submission(user, challenge, request.sourceCode(), (int) previousAttempts + 1));
         if (isUnchangedStarter(challenge, request.sourceCode())) {
-            return saveResult(submission, FunctionalEvaluationStatus.STARTER_CODE, 0, 0, "Submitted code is starter code");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Starter code cannot be submitted. Modify the code before submitting.");
         }
+        int attemptNumber = attemptWindows.consume(user, challengeId);
+        Submission submission = submissionRepository.save(new Submission(user, challenge, request.sourceCode(), attemptNumber));
         List<TestCase> testCases = challenge.getTestCases().stream()
                 .sorted(Comparator.comparingInt(TestCase::getPosition)).toList();
         if (testCases.isEmpty()) return saveResult(submission, FunctionalEvaluationStatus.EVALUATION_ERROR, 0, 0,

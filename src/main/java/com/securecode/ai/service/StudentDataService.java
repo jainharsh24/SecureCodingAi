@@ -60,6 +60,14 @@ public class StudentDataService {
     }
 
     @Transactional(readOnly = true)
+    public List<SubmissionHistoryResponse> challengeAttempts(String email, Long challengeId) {
+        user(email);
+        return submissions.findByUser_EmailAndChallenge_IdOrderByAttemptNumberAsc(email, challengeId).stream()
+                .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
+                .limit(5).map(this::historyItem).toList();
+    }
+
+    @Transactional(readOnly = true)
     public UserSummaryResponse summary(String email) {
         User user = user(email);
         List<Submission> all = submissions.findByUser_EmailOrderBySubmittedAtDesc(email);
