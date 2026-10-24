@@ -8,3 +8,4 @@ target/
 
 # Local database configuration
 .env
+.env.example
