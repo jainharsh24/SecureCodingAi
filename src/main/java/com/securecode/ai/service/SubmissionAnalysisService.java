@@ -13,6 +13,8 @@ import com.securecode.ai.entity.FunctionalEvaluation;
 import com.securecode.ai.entity.FunctionalEvaluationStatus;
 import com.securecode.ai.entity.SecurityEvaluation;
 import com.securecode.ai.entity.Submission;
+import com.securecode.ai.entity.Challenge;
+import com.securecode.ai.repository.ChallengeRepository;
 import com.securecode.ai.repository.FunctionalEvaluationRepository;
 import com.securecode.ai.repository.SecurityEvaluationRepository;
 import com.securecode.ai.repository.SubmissionRepository;
@@ -41,14 +43,24 @@ public class SubmissionAnalysisService {
     private final FunctionalEvaluationRepository functionalEvaluationRepository;
     private final SecurityEvaluationRepository securityEvaluationRepository;
     private final SecurityFindingEvidenceCodec findingEvidenceCodec;
+    private final ChallengeRepository challenges;
 
     public SubmissionAnalysisService(SubmissionRepository submissionRepository,
             FunctionalEvaluationRepository functionalEvaluationRepository,
             SecurityEvaluationRepository securityEvaluationRepository, SecurityFindingEvidenceCodec findingEvidenceCodec) {
+        this(submissionRepository, functionalEvaluationRepository, securityEvaluationRepository, findingEvidenceCodec, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SubmissionAnalysisService(SubmissionRepository submissionRepository,
+            FunctionalEvaluationRepository functionalEvaluationRepository,
+            SecurityEvaluationRepository securityEvaluationRepository, SecurityFindingEvidenceCodec findingEvidenceCodec,
+            ChallengeRepository challenges) {
         this.submissionRepository = submissionRepository;
         this.functionalEvaluationRepository = functionalEvaluationRepository;
         this.securityEvaluationRepository = securityEvaluationRepository;
         this.findingEvidenceCodec = findingEvidenceCodec;
+        this.challenges = challenges;
     }
 
     @Transactional(readOnly = true)
@@ -75,7 +87,7 @@ public class SubmissionAnalysisService {
         Assessment assessment = assessment(functional.getStatus(), evidence);
         return new SubmissionAnalysisResponse(submissionId, assessment.overallDecision(), evaluators, evidence,
                 new AssessmentResponse(assessment.evidenceState()), findingGroups(securityByEvaluator),
-                new SubmissionContextResponse(submission.getChallenge().getChallengeNumber(), submission.getChallenge().getTitle(),
+                new SubmissionContextResponse(submission.getChallenge().getChallengeNumber(), catalogNumber(submission.getChallenge()), submission.getChallenge().getTitle(),
                         submission.getChallenge().getDescription(), submission.getLanguage(), submission.getSourceCode()));
     }
 
@@ -140,6 +152,15 @@ public class SubmissionAnalysisService {
         if (evidence.safeCount() > evidence.vulnerableCount()) return new Assessment("SECURITY PASS", "MOSTLY SAFE — CONFLICT EXISTS");
         if (evidence.vulnerableCount() > evidence.safeCount()) return new Assessment("SECURITY FAIL", "MOSTLY VULNERABLE — CONFLICT EXISTS");
         return new Assessment("INCONCLUSIVE", "CONFLICTING EVIDENCE");
+    }
+
+    private Integer catalogNumber(Challenge challenge) {
+        if (challenges == null || !challenge.isActive()) return null;
+        List<Challenge> active = challenges.findByActiveTrueOrderByChallengeNumberAsc();
+        for (int index = 0; index < active.size(); index++) {
+            if (active.get(index).getId().equals(challenge.getId())) return index + 1;
+        }
+        return null;
     }
 
     private record EvaluatorDefinition(String id, String displayName) { }

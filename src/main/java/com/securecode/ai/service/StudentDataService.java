@@ -39,6 +39,10 @@ import org.springframework.web.server.ResponseStatusException;
 /** User-scoped history and aggregate read models. No browser state is used for these values. */
 @Service
 public class StudentDataService {
+    private static final List<String> ANALYTICS_SUBTYPES = List.of(
+            "SQL Injection", "NoSQL Injection", "Command Injection", "LDAP Injection",
+            "XPath Injection", "XML Injection", "CRLF Injection", "Template/SSTI Injection",
+            "Code Injection", "Email Header Injection", "XXE Injection", "GraphQL Injection");
     private final UserRepository users;
     private final SubmissionRepository submissions;
     private final FunctionalEvaluationRepository functionals;
@@ -90,13 +94,17 @@ public class StudentDataService {
         long passed = all.stream().filter(s -> functionalBySubmission.get(s.getId()) == FunctionalEvaluationStatus.PASS).count();
         int highestSafeEvidence = all.stream().mapToInt(this::safeEvidencePercent).max().orElse(0);
         Map<Long, String> solvedChallenges = new LinkedHashMap<>();
-        all.stream().filter(s -> s.getLearningScore() >= 90).forEach(s -> solvedChallenges.putIfAbsent(s.getChallenge().getId(), subtype(s)));
-        List<VulnerabilitySubtypeProgress> bySubtype = solvedChallenges.values().stream()
+        all.stream().filter(s -> s.getLearningScore() >= 90).forEach(s -> solvedChallenges.putIfAbsent(s.getChallenge().getId(), analyticsSubtype(s)));
+        List<VulnerabilitySubtypeProgress> solvedBySubtype = solvedChallenges.values().stream()
                 .collect(java.util.stream.Collectors.groupingBy(value -> value, LinkedHashMap::new, java.util.stream.Collectors.counting()))
                 .entrySet().stream().map(entry -> new VulnerabilitySubtypeProgress(entry.getKey(), entry.getValue())).toList();
-        if (challenges == null) return new StudentAnalyticsResponse(solvedChallenges.size(), passed, highestSafeEvidence, progress, bySubtype,
+        if (challenges == null) return new StudentAnalyticsResponse(solvedChallenges.size(), passed, highestSafeEvidence, progress, solvedBySubtype,
                 0, 0, 0, 0, List.of(), List.of(), List.of(), List.of());
         List<Challenge> active = challenges.findByActiveTrueOrderByChallengeNumberAsc();
+        Map<String, Long> subtypeCounts = solvedBySubtype.stream().collect(Collectors.toMap(
+                VulnerabilitySubtypeProgress::vulnerabilitySubtype, VulnerabilitySubtypeProgress::questionsSolved));
+        List<VulnerabilitySubtypeProgress> bySubtype = ANALYTICS_SUBTYPES.stream()
+                .map(subtype -> new VulnerabilitySubtypeProgress(subtype, subtypeCounts.getOrDefault(subtype, 0L))).toList();
         Map<Long, List<Submission>> byChallenge = all.stream().collect(Collectors.groupingBy(s -> s.getChallenge().getId()));
         Set<Long> solvedIds = all.stream().filter(s -> s.getLearningScore() >= 90).map(s -> s.getChallenge().getId()).collect(Collectors.toSet());
         List<ChallengeProgressResponse> perChallenge = active.stream().map(challenge -> challengeProgress(challenge, byChallenge.getOrDefault(challenge.getId(), List.of()), solvedIds, functionalBySubmission, active)).toList();
@@ -169,6 +177,24 @@ public class StudentDataService {
     private String subtype(Submission submission) {
         String subtype = submission.getChallenge().getVulnerabilitySubtype();
         return subtype == null || subtype.isBlank() ? "Unspecified" : subtype;
+    }
+
+    /** Maps prerequisite and progression labels back to the twelve catalog vulnerability subtypes for comparison. */
+    private String analyticsSubtype(Submission submission) {
+        String value = subtype(submission).toLowerCase(java.util.Locale.ROOT);
+        if (value.contains("graphql")) return "GraphQL Injection";
+        if (value.contains("email")) return "Email Header Injection";
+        if (value.contains("template") || value.contains("ssti")) return "Template/SSTI Injection";
+        if (value.contains("command")) return "Command Injection";
+        if (value.contains("nosql")) return "NoSQL Injection";
+        if (value.contains("sql")) return "SQL Injection";
+        if (value.contains("ldap")) return "LDAP Injection";
+        if (value.contains("xpath")) return "XPath Injection";
+        if (value.contains("xxe")) return "XXE Injection";
+        if (value.contains("xml")) return "XML Injection";
+        if (value.contains("crlf") || value.contains("header")) return "CRLF Injection";
+        if (value.contains("code")) return "Code Injection";
+        return subtype(submission);
     }
 
     private String historyEvidenceState(String functional, List<SecurityEvaluation> evidence) {
