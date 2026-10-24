@@ -64,3 +64,8 @@ button { cursor:pointer; }
 @media (max-width:1450px) { #list.grid.two { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:1050px) { #list.grid.two { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:640px) { .home-summary,#list.grid.two { grid-template-columns:1fr; }.home-page { gap:8px; }.challenge-card h2 { font-size:17px; } }
+
+/* Keep subtype bars and their complete labels usable at every viewport width. */
+.analytics-page .subtype-chart-scroll { width:100%; overflow-x:auto; }
+.analytics-page .subtype-chart { width:100%; min-width:var(--subtype-chart-min-width,720px); max-width:none; }
+.analytics-page .subtype-label { font-size:10px; }

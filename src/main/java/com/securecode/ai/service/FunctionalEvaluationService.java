@@ -17,6 +17,9 @@ import com.securecode.ai.repository.SubmissionRepository;
 import com.securecode.ai.repository.UserRepository;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class FunctionalEvaluationService {
+    private static final Logger log = LoggerFactory.getLogger(FunctionalEvaluationService.class);
     private final ChallengeRepository challengeRepository;
     private final UserRepository userRepository;
     private final SubmissionRepository submissionRepository;
@@ -48,6 +52,7 @@ public class FunctionalEvaluationService {
 
     @Transactional
     public FunctionalEvaluationResponse submitAndEvaluate(Long challengeId, String email, SubmissionRequest request) {
+        long overallStarted = System.nanoTime();
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Challenge not found"));
         if (!challenge.isActive()) {
@@ -71,7 +76,10 @@ public class FunctionalEvaluationService {
         String firstFailure = null;
         try {
             for (TestCase testCase : testCases) {
+                long judge0Started = System.nanoTime();
                 Judge0ExecutionResult result = judge0Client.execute(challenge.getLanguage(), request.sourceCode(), testCase.getInputData());
+                log.info("functional evaluator completed evaluator=JUDGE0 submissionId={} status={} durationMs={}", submission.getId(),
+                        result.completed() && result.accepted() ? "COMPLETED" : "FAILED", elapsedMs(judge0Started));
                 boolean testPassed = result.completed() && result.accepted()
                         && normalizeOutput(testCase.getExpectedOutput()).equals(normalizeOutput(result.stdout()));
                 if (testPassed) passed++;
@@ -81,7 +89,10 @@ public class FunctionalEvaluationService {
             return saveResult(submission, FunctionalEvaluationStatus.EVALUATION_ERROR, passed, testCases.size(), exception.getMessage());
         }
         FunctionalEvaluationStatus status = passed == testCases.size() ? FunctionalEvaluationStatus.PASS : FunctionalEvaluationStatus.FAIL;
-        return saveResult(submission, status, passed, testCases.size(), firstFailure);
+        FunctionalEvaluationResponse response = saveResult(submission, status, passed, testCases.size(), firstFailure);
+        log.info("submission evaluation completed submissionId={} status={} durationMs={}", submission.getId(), status,
+                elapsedMs(overallStarted));
+        return response;
     }
 
     private boolean isUnchangedStarter(Challenge challenge, String submittedCode) {
@@ -128,4 +139,6 @@ public class FunctionalEvaluationService {
         if (security == null || !"COMPLETED".equals(security.status())) return "MOSTLY SAFE";
         return security.detected() ? "STRONG VULNERABILITY" : "STRONG SAFE";
     }
+
+    private long elapsedMs(long started) { return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started); }
 }

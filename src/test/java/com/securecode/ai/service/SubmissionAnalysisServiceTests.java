@@ -39,8 +39,10 @@ class SubmissionAnalysisServiceTests {
         when(submissions.findById(7L)).thenReturn(Optional.of(submission));
         when(functionalEvaluations.findBySubmission_Id(7L))
                 .thenReturn(Optional.of(new FunctionalEvaluation(submission, FunctionalEvaluationStatus.PASS, 2, 2, null)));
-        when(securityEvaluations.findBySubmission_Id(7L)).thenReturn(List.of(new SecurityEvaluation(submission, "SEMGREP", false,
-                null, null, "INFO", null, "{}", "COMPLETED", null)));
+        when(securityEvaluations.findBySubmission_Id(7L)).thenReturn(List.of(
+                new SecurityEvaluation(submission, "SEMGREP", false, null, null, "INFO", null, "{}", "COMPLETED", null),
+                new SecurityEvaluation(submission, "SPOTBUGS", false, null, null, "INFO", null, "{}", "COMPLETED", null),
+                new SecurityEvaluation(submission, "GROQ", false, null, null, "INFO", null, "{}", "COMPLETED", null)));
 
         SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
                 securityEvaluations, findingEvidenceCodec).getForStudent(7L, "student@example.com");
@@ -48,13 +50,16 @@ class SubmissionAnalysisServiceTests {
         assertThat(response.overallDecision()).isEqualTo("SECURITY PASS");
         assertThat(response.assessment().evidenceState()).isEqualTo("STRONG SAFE EVIDENCE");
         assertThat(response.evidenceSummary().safeEvidencePercent()).isEqualTo(100);
+        assertThat(response.evidenceSummary().safeCount()).isEqualTo(3);
         assertThat(response.submissionContext()).satisfies(context -> {
             assertThat(context.challengeNumber()).isEqualTo(12);
             assertThat(context.challengeDescription()).isEqualTo("Original full description");
             assertThat(context.submittedCode()).isEqualTo("class Main { }");
         });
         assertThat(response.evaluators()).extracting(item -> item.evaluator() + ":" + item.result())
-                .containsExactly("JUDGE0:PASS", "SEMGREP:SAFE", "PMD:NOT_AVAILABLE", "SPOTBUGS:NOT_AVAILABLE", "LLM:NOT_AVAILABLE");
+                .containsExactly("JUDGE0:PASS", "SEMGREP:SAFE", "SPOTBUGS:SAFE", "GROQ:SAFE");
+        assertThat(response.evaluators()).filteredOn(item -> item.evaluator().equals("GROQ"))
+                .extracting(item -> item.displayName()).containsExactly("LLM");
     }
 
     @Test
@@ -79,5 +84,7 @@ class SubmissionAnalysisServiceTests {
 
         assertThat(response.overallDecision()).isEqualTo("Functional Fail");
         assertThat(response.assessment().evidenceState()).isEqualTo("Functional Fail");
+        assertThat(response.evaluators()).filteredOn(item -> item.evaluator().equals("GROQ"))
+                .extracting(item -> item.result()).containsExactly("NOT_RUN");
     }
 }

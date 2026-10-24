@@ -35,9 +35,8 @@ public class SubmissionAnalysisService {
     private static final List<EvaluatorDefinition> EVALUATOR_CATALOG = List.of(
             new EvaluatorDefinition("JUDGE0", "Judge0"),
             new EvaluatorDefinition("SEMGREP", "Semgrep"),
-            new EvaluatorDefinition("PMD", "PMD"),
             new EvaluatorDefinition("SPOTBUGS", "SpotBugs"),
-            new EvaluatorDefinition("LLM", "LLM"));
+            new EvaluatorDefinition("GROQ", "LLM"));
 
     private final SubmissionRepository submissionRepository;
     private final FunctionalEvaluationRepository functionalEvaluationRepository;
@@ -110,6 +109,10 @@ public class SubmissionAnalysisService {
 
     private EvaluatorResultResponse toSecurityEvaluator(EvaluatorDefinition definition, SecurityEvaluation evaluation) {
         if (evaluation == null) {
+            if ("GROQ".equals(definition.id())) {
+                return new EvaluatorResultResponse(definition.id(), definition.displayName(), "NOT_RUN", false,
+                        "LLM evaluation was not run because this submission did not reach security evaluation");
+            }
             return new EvaluatorResultResponse(definition.id(), definition.displayName(), "NOT_AVAILABLE", false, null);
         }
         String status = evaluation.getEvaluatorStatus();
@@ -131,6 +134,8 @@ public class SubmissionAnalysisService {
         int safe = 0;
         int vulnerable = 0;
         for (SecurityEvaluation evaluation : evaluations) {
+            // Historical Grok records are no longer part of the displayed evaluator set.
+            if ("GROK".equalsIgnoreCase(evaluation.getEvaluatorName())) continue;
             boolean completed = "COMPLETED".equals(evaluation.getEvaluatorStatus())
                     || (evaluation.getEvaluatorStatus() == null && !"EVALUATOR_ERROR".equals(evaluation.getSeverity()));
             if (!completed) continue;

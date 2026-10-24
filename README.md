@@ -43,7 +43,7 @@ tools/semgrep/rules/java-security.yml  project Semgrep rules
 2. The student writes or modifies the provided starter code.
 3. The code is submitted to the backend.
 4. Judge0 checks functional correctness.
-5. If all functional tests pass, Semgrep and SpotBugs scan the code.
+5. If all functional tests pass, Semgrep and SpotBugs scan the code; the optional Groq adapter adds advisory evidence only.
 6. Evaluator evidence is stored with the submission and shown on the Analysis page, history, and analytics.
 
 ```text
@@ -69,7 +69,7 @@ Required tools are Java 25, Maven, PostgreSQL, a reachable Judge0 service, WSL w
 
 Copy `.env.example` to `.env` and set local values. `.env` is ignored by Git; do not commit passwords, tokens, or production signing secrets. The template documents database, authentication, Judge0, Semgrep, and SpotBugs variables. `SEMGREP_RULES_PATH` defaults to `tools/semgrep/rules/java-security.yml`.
 
-Semgrep runs inside `SEMGREP_WSL_DISTRIBUTION`; a Windows-only `semgrep.exe` is not sufficient for the current adapter. SpotBugs variables must reference the local `spotbugs.bat`, FindSecBugs plugin JAR, and JDK compiler.
+Semgrep runs inside `SEMGREP_WSL_DISTRIBUTION`; a Windows-only `semgrep.exe` is not sufficient for the current adapter. SpotBugs variables must reference the local `spotbugs.bat`, FindSecBugs plugin JAR, and JDK compiler. To enable the optional Groq advisory evaluator, set `GROQ_ENABLED=true` and `GROQ_API_KEY`; it uses Groq Chat Completions and does not alter the authoritative assessment or learning score.
 
 ## PostgreSQL and Flyway
 
