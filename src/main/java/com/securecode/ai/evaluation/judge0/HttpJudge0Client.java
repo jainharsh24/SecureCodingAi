@@ -46,11 +46,20 @@ public class HttpJudge0Client implements Judge0Client {
             if (submission != null && submission.status() != null && submission.status().id() > 2) {
                 String details = firstPresent(submission.compile_output(), submission.stderr(), submission.message(),
                         submission.status().description());
-                return new Judge0ExecutionResult(true, submission.status().id() == 3, submission.stdout(), details);
+                return new Judge0ExecutionResult(true, submission.status().id() == 3, submission.stdout(), details,
+                        executionStatus(submission.status().id()));
             }
             sleepBeforePollingAgain();
         }
-        return new Judge0ExecutionResult(false, false, null, "Judge0 evaluation timed out");
+        return new Judge0ExecutionResult(false, false, null, "Judge0 evaluation timed out",
+                Judge0ExecutionStatus.UNVERIFIED);
+    }
+
+    private Judge0ExecutionStatus executionStatus(int statusId) {
+        if (statusId == 3) return Judge0ExecutionStatus.ACCEPTED;
+        // Judge0 defines status 6 as Compilation Error. Other completed statuses are failed executions/tests.
+        if (statusId == 6) return Judge0ExecutionStatus.COMPILATION_ERROR;
+        return Judge0ExecutionStatus.REJECTED;
     }
 
     private RestClient.RequestHeadersUriSpec<?> getRequest() {

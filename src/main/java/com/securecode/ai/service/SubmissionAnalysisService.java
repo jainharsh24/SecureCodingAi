@@ -8,6 +8,7 @@ import com.securecode.ai.dto.SecurityFindingDisplayResponse;
 import com.securecode.ai.dto.SubmissionAnalysisResponse;
 import com.securecode.ai.dto.LearningFeedbackResponse;
 import com.securecode.ai.dto.SubmissionContextResponse;
+import com.securecode.ai.dto.LearningScoreBreakdownResponse;
 import com.securecode.ai.evaluation.common.SecurityFindingEvidenceCodec;
 import com.securecode.ai.evaluation.common.StoredSecurityFinding;
 import com.securecode.ai.entity.FunctionalEvaluation;
@@ -84,12 +85,16 @@ public class SubmissionAnalysisService {
         }
 
         EvidenceSummaryResponse evidence = evidenceSummary(securityByEvaluator.values());
-        Assessment assessment = assessment(functional.getStatus(), evidence);
+        Assessment assessment = assessment(functional.getStatus(), submission.getSecurityCorrectnessStatus(), evidence);
         return new SubmissionAnalysisResponse(submissionId, assessment.overallDecision(), evaluators, evidence,
                 new AssessmentResponse(assessment.evidenceState()), findingGroups(securityByEvaluator),
                 learningFeedback(functional.getStatus(), evidence, securityByEvaluator.get("GROQ")),
                 new SubmissionContextResponse(submission.getChallenge().getChallengeNumber(), catalogNumber(submission.getChallenge()), submission.getChallenge().getTitle(),
-                        submission.getChallenge().getDescription(), submission.getLanguage(), submission.getSourceCode()));
+                        submission.getChallenge().getDescription(), submission.getLanguage(), submission.getSourceCode()),
+                new LearningScoreBreakdownResponse(submission.getLearningScore(), submission.getVerifiedFinalScore(),
+                        submission.getLearningScoreState(), functionalScore(functional), submission.getSecurityScore(),
+                        submission.getUnderstandingScore(), submission.getIndependentProblemSolvingScore(),
+                        submission.isVerifiedCompleted(), submission.isVerifiedMastered()));
     }
 
     private LearningFeedbackResponse learningFeedback(FunctionalEvaluationStatus functionalStatus,
@@ -157,10 +162,11 @@ public class SubmissionAnalysisService {
                     evaluation.isDetected() ? "VULNERABLE" : "SAFE", true, null);
         }
         if (status == null) { // Records saved before evaluator status was persisted.
-            String legacyResult = "INFO".equals(evaluation.getSeverity()) ? "SAFE"
-                    : evaluation.isDetected() ? "VULNERABLE" : "ERROR";
+            // A status-less record cannot prove a successful scan.  In particular, older
+            // failures could have an INFO severity and were incorrectly rendered as SAFE.
+            String legacyResult = evaluation.isDetected() ? "VULNERABLE" : "UNVERIFIED";
             return new EvaluatorResultResponse(definition.id(), definition.displayName(), legacyResult,
-                    !"ERROR".equals(legacyResult), "ERROR".equals(legacyResult) ? "Legacy evaluator error" : null);
+                    evaluation.isDetected(), evaluation.isDetected() ? null : "Legacy evaluator outcome was not verified");
         }
         return new EvaluatorResultResponse(definition.id(), definition.displayName(), status, false,
                 evaluation.getEvaluatorError());
@@ -185,16 +191,26 @@ public class SubmissionAnalysisService {
         return new EvidenceSummaryResponse(safePercent, total == 0 ? 0 : 100 - safePercent, safe, vulnerable);
     }
 
-    private Assessment assessment(FunctionalEvaluationStatus functionalStatus, EvidenceSummaryResponse evidence) {
+    private Assessment assessment(FunctionalEvaluationStatus functionalStatus, String securityStatus, EvidenceSummaryResponse evidence) {
         if (functionalStatus == FunctionalEvaluationStatus.FAIL) return new Assessment("Functional Fail", "Functional Fail");
         if (functionalStatus == FunctionalEvaluationStatus.STARTER_CODE) return new Assessment("Submitted code is starter code", "INCOMPLETE ATTEMPT");
         if (functionalStatus != FunctionalEvaluationStatus.PASS) return new Assessment("NOT_AVAILABLE", "NOT_AVAILABLE");
+        if ("TARGETED_VULNERABILITY".equals(securityStatus)) return new Assessment("SECURITY FAIL", "TARGETED VULNERABILITY");
+        if ("CONFLICTING_EVIDENCE".equals(securityStatus)) return new Assessment("INCONCLUSIVE", "CONFLICTING EVIDENCE");
+        if ("UNVERIFIED".equals(securityStatus) || "NOT_RUN".equals(securityStatus)) return new Assessment("NOT_AVAILABLE", "UNVERIFIED");
+        if ("VERIFIED_SAFE".equals(securityStatus)) return new Assessment("SECURITY PASS", "VERIFIED SAFE");
         if (evidence.safeCount() + evidence.vulnerableCount() == 0) return new Assessment("NOT_AVAILABLE", "NO SECURITY EVIDENCE");
         if (evidence.vulnerableCount() == 0) return new Assessment("SECURITY PASS", "STRONG SAFE EVIDENCE");
         if (evidence.safeCount() == 0) return new Assessment("SECURITY FAIL", "STRONG VULNERABILITY EVIDENCE");
         if (evidence.safeCount() > evidence.vulnerableCount()) return new Assessment("SECURITY PASS", "MOSTLY SAFE — CONFLICT EXISTS");
         if (evidence.vulnerableCount() > evidence.safeCount()) return new Assessment("SECURITY FAIL", "MOSTLY VULNERABLE — CONFLICT EXISTS");
         return new Assessment("INCONCLUSIVE", "CONFLICTING EVIDENCE");
+    }
+
+    private Integer functionalScore(FunctionalEvaluation evaluation) {
+        if ((evaluation.getStatus() != FunctionalEvaluationStatus.PASS && evaluation.getStatus() != FunctionalEvaluationStatus.FAIL)
+                || evaluation.getTotalTests() == 0) return 0;
+        return Math.round(25f * evaluation.getPassedTests() / evaluation.getTotalTests());
     }
 
     private Integer catalogNumber(Challenge challenge) {

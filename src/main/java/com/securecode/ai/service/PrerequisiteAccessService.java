@@ -15,7 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-/** Uses the established persisted completion signal (learning score >= 90), never an attempt alone. */
+/** Uses verified completion for Step 5 records; legacy score-only records retain their existing progression state. */
 @Service
 public class PrerequisiteAccessService {
     private final SubmissionRepository submissions;
@@ -23,7 +23,8 @@ public class PrerequisiteAccessService {
 
     public PrerequisiteAccessResponse access(User user, Challenge target, Map<Long, Integer> catalogNumbers) {
         Set<Long> complete = submissions.findByUser_EmailOrderBySubmittedAtDesc(user.getEmail()).stream()
-                .filter(submission -> submission.getLearningScore() >= 90)
+                .filter(submission -> submission.getLearningScoreState() == null
+                        ? submission.getLearningScore() >= 90 : submission.isVerifiedCompleted())
                 .map(submission -> submission.getChallenge().getId()).collect(Collectors.toSet());
         List<PrerequisiteStatusResponse> prerequisites = target.getPrerequisites().stream()
                 .map(prerequisite -> status(prerequisite, complete, catalogNumbers, new HashSet<>(Set.of(target.getId()))) )

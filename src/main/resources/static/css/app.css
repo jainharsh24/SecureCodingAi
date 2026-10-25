@@ -69,3 +69,14 @@ button { cursor:pointer; }
 .analytics-page .subtype-chart-scroll { width:100%; overflow-x:auto; }
 .analytics-page .subtype-chart { width:100%; min-width:var(--subtype-chart-min-width,720px); max-width:none; }
 .analytics-page .subtype-label { font-size:10px; }
+
+/* Analysis is a page, not a fixed-width dialog: content wraps before it can create horizontal page overflow. */
+.submission-analysis-page,.submission-analysis-page * { min-width:0; }
+.submission-analysis-page .analysis-board,.submission-analysis-page .analysis-evaluators { overflow:visible; }
+.submission-analysis-page .evaluator-grid { grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); }
+.learning-score-breakdown { display:grid; gap:8px; }
+.score-components { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.score-components span { display:flex; justify-content:space-between; gap:6px; padding:8px; border-radius:7px; background:#f6f8fb; color:#475467; font-size:12px; }
+.score-components strong { color:#172033; white-space:nowrap; }
+@media (max-width:700px) { .submission-analysis-page .analysis-page-layout { gap:10px; }.submission-analysis-page .evaluator-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.analysis-decision { align-items:flex-start!important; flex-direction:column; }.submitted-code-scroll { max-height:360px; }.score-components { grid-template-columns:1fr; } }
+@media (max-width:390px) { .submission-analysis-page .evaluator-grid { grid-template-columns:1fr; }.analysis-number { font-size:10px; }.analysis-card-head { flex-wrap:wrap; }.submitted-code-lines { font-size:11px; } }

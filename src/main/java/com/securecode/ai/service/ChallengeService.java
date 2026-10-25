@@ -104,7 +104,8 @@ public class ChallengeService {
                 .map(t -> new TestCaseResponse(t.getId(), t.getInputData(), t.getExpectedOutput(), t.isHidden(), t.getPosition())).toList();
         int attempts = user == null ? 0 : (int) submissionRepository.countByUser_IdAndChallenge_Id(user.getId(), c.getId());
         boolean solved = user != null && submissionRepository.findByUser_EmailAndChallenge_IdOrderByAttemptNumberAsc(user.getEmail(), c.getId())
-                .stream().anyMatch(s -> s.getLearningScore() >= 90);
+                .stream().anyMatch(s -> s.getLearningScoreState() == null
+                        ? s.getLearningScore() >= 90 : s.isVerifiedCompleted());
         return new ChallengeResponse(c.getId(), c.getChallengeNumber(), catalogNumber, c.getTitle(), c.getDescription(), c.getLanguage(), c.getVulnerabilityType(),
                 c.getVulnerabilitySubtype(), c.getCwe(), c.getStarterCode(), tests, c.getDifficulty().name(), attempts, Math.max(0, 5 - attempts), solved, locked, access.prerequisites());
     }

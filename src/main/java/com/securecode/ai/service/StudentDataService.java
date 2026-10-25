@@ -76,7 +76,7 @@ public class StudentDataService {
         User user = user(email);
         List<Submission> all = submissions.findByUser_EmailOrderBySubmittedAtDesc(email);
         long attempted = all.stream().map(s -> s.getChallenge().getId()).distinct().count();
-        long solved = all.stream().filter(s -> s.getLearningScore() >= 90).map(s -> s.getChallenge().getId()).distinct().count();
+        long solved = all.stream().filter(this::completed).map(s -> s.getChallenge().getId()).distinct().count();
         double average = all.isEmpty() ? 0 : Math.round(all.stream().mapToInt(Submission::getLearningScore).average().orElse(0) * 10.0) / 10.0;
         return new UserSummaryResponse(user.getName(), user.getEmail(), solved, attempted, all.size(), average);
     }
@@ -94,7 +94,7 @@ public class StudentDataService {
         long passed = all.stream().filter(s -> functionalBySubmission.get(s.getId()) == FunctionalEvaluationStatus.PASS).count();
         int highestSafeEvidence = all.stream().mapToInt(this::safeEvidencePercent).max().orElse(0);
         Map<Long, String> solvedChallenges = new LinkedHashMap<>();
-        all.stream().filter(s -> s.getLearningScore() >= 90).forEach(s -> solvedChallenges.putIfAbsent(s.getChallenge().getId(), analyticsSubtype(s)));
+        all.stream().filter(this::completed).forEach(s -> solvedChallenges.putIfAbsent(s.getChallenge().getId(), analyticsSubtype(s)));
         List<VulnerabilitySubtypeProgress> solvedBySubtype = solvedChallenges.values().stream()
                 .collect(java.util.stream.Collectors.groupingBy(value -> value, LinkedHashMap::new, java.util.stream.Collectors.counting()))
                 .entrySet().stream().map(entry -> new VulnerabilitySubtypeProgress(entry.getKey(), entry.getValue())).toList();
@@ -106,7 +106,7 @@ public class StudentDataService {
         List<VulnerabilitySubtypeProgress> bySubtype = ANALYTICS_SUBTYPES.stream()
                 .map(subtype -> new VulnerabilitySubtypeProgress(subtype, subtypeCounts.getOrDefault(subtype, 0L))).toList();
         Map<Long, List<Submission>> byChallenge = all.stream().collect(Collectors.groupingBy(s -> s.getChallenge().getId()));
-        Set<Long> solvedIds = all.stream().filter(s -> s.getLearningScore() >= 90).map(s -> s.getChallenge().getId()).collect(Collectors.toSet());
+        Set<Long> solvedIds = all.stream().filter(this::completed).map(s -> s.getChallenge().getId()).collect(Collectors.toSet());
         List<ChallengeProgressResponse> perChallenge = active.stream().map(challenge -> challengeProgress(challenge, byChallenge.getOrDefault(challenge.getId(), List.of()), solvedIds, functionalBySubmission, active)).toList();
         List<DifficultyAccuracyResponse> accuracy = java.util.Arrays.stream(Difficulty.values()).map(difficulty -> accuracy(difficulty, all, functionalBySubmission)).toList();
         List<AnalyticsTrendPoint> weekly = trends(all, functionalBySubmission, solvedIds, true);
@@ -152,6 +152,8 @@ public class StudentDataService {
         }).toList();
     }
     private boolean evaluated(FunctionalEvaluationStatus status) { return status == FunctionalEvaluationStatus.PASS || status == FunctionalEvaluationStatus.FAIL; }
+    /** Old rows remain historical only; do not certify them as Step-5 verified completion. */
+    private boolean completed(Submission submission) { return submission.isVerifiedCompleted(); }
     private String bucket(Submission submission, boolean weekly) { var date = submission.getSubmittedAt().atZone(ZoneOffset.UTC); return weekly ? String.format("%d-W%02d", date.get(WeekFields.ISO.weekBasedYear()), date.get(WeekFields.ISO.weekOfWeekBasedYear())) : YearMonth.from(date).toString(); }
     private String subtype(Challenge challenge) { String value = challenge.getVulnerabilitySubtype(); return value == null || value.isBlank() ? "Unspecified" : value; }
 
@@ -164,7 +166,7 @@ public class StudentDataService {
         return new SubmissionHistoryResponse(submission.getId(), submission.getChallenge().getId(), submission.getChallenge().getChallengeNumber(), submission.getChallenge().getTitle(),
                 submission.getChallenge().getDifficulty().name(), submission.getAttemptNumber(), submission.getSubmittedAt(), functional,
                 submission.getRawAssessment(), submission.getLearningScore(), safePercent, completed == 0 ? 0 : 100 - safePercent,
-                historyEvidenceState(functional, evidence));
+                historyEvidenceState(submission, functional, evidence));
     }
 
     private int safeEvidencePercent(Submission submission) {
@@ -197,10 +199,24 @@ public class StudentDataService {
         return subtype(submission);
     }
 
-    private String historyEvidenceState(String functional, List<SecurityEvaluation> evidence) {
+    private String historyEvidenceState(Submission submission, String functional, List<SecurityEvaluation> evidence) {
         if ("FAIL".equals(functional)) return "Functional Fail";
         if ("STARTER_CODE".equals(functional)) return "INCOMPLETE ATTEMPT";
         if (!"PASS".equals(functional)) return "NOT_AVAILABLE";
+        String securityStatus = submission.getSecurityCorrectnessStatus();
+        if ("TARGETED_VULNERABILITY".equals(securityStatus)) return "TARGETED VULNERABILITY";
+        if ("CONFLICTING_EVIDENCE".equals(securityStatus)) return "CONFLICTING EVIDENCE";
+        if ("VERIFIED_SAFE".equals(securityStatus)) return "VERIFIED SAFE";
+        // Older rows predate the persisted correctness gate.  They remain useful only
+        // when every recorded evaluator explicitly completed without an error; a missing,
+        // timed-out, or failed evaluator is never summarized as strong-safe evidence.
+        boolean legacyOutcomeIsVerified = securityStatus == null && !evidence.isEmpty()
+                && evidence.stream().allMatch(e -> "COMPLETED".equals(e.getEvaluatorStatus())
+                        && (e.getEvaluatorError() == null || e.getEvaluatorError().isBlank()));
+        if ((securityStatus == null && !legacyOutcomeIsVerified)
+                || "UNVERIFIED".equals(securityStatus) || "NOT_RUN".equals(securityStatus)) {
+            return "UNVERIFIED";
+        }
         int completedEvidence = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus())).count();
         if (completedEvidence == 0) return "NO SECURITY EVIDENCE";
         int safe = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus()) && !e.isDetected()).count();

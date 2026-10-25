@@ -92,6 +92,11 @@ public class SecurityEvaluationService {
                 result.findings().stream().map(this::toResponse).toList(), normalized.error(), normalized);
     }
 
+    /** Reads the evaluator records persisted by the established evaluation pipeline. */
+    public List<SecurityEvaluation> evaluationsFor(Long submissionId) {
+        return securityEvaluationRepository.findBySubmission_Id(submissionId);
+    }
+
     private <T> Future<T> submit(String evaluator, Long submissionId, Supplier<T> operation,
             Function<T, SecurityEvaluationStatus> status) {
         try {

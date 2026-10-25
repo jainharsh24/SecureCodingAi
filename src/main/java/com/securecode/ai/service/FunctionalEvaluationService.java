@@ -8,6 +8,7 @@ import com.securecode.ai.entity.FunctionalEvaluationStatus;
 import com.securecode.ai.entity.Submission;
 import com.securecode.ai.entity.TestCase;
 import com.securecode.ai.entity.User;
+import com.securecode.ai.entity.UnderstandingAssessment;
 import com.securecode.ai.evaluation.judge0.Judge0Client;
 import com.securecode.ai.evaluation.judge0.Judge0ExecutionResult;
 import com.securecode.ai.evaluation.judge0.Judge0UnavailableException;
@@ -15,6 +16,7 @@ import com.securecode.ai.repository.ChallengeRepository;
 import com.securecode.ai.repository.FunctionalEvaluationRepository;
 import com.securecode.ai.repository.SubmissionRepository;
 import com.securecode.ai.repository.UserRepository;
+import com.securecode.ai.repository.UnderstandingAssessmentRepository;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -34,6 +36,10 @@ public class FunctionalEvaluationService {
     private final FunctionalEvaluationRepository evaluationRepository;
     private final Judge0Client judge0Client;
     private final SecurityEvaluationService securityEvaluationService;
+    private final SecurityCorrectnessScoringService securityCorrectnessScoringService;
+    private final IndependentProblemSolvingService independentProblemSolvingService;
+    private final UnderstandingAssessmentRepository understandingAssessments;
+    private final OverallLearningScoreService overallLearningScoreService;
     private final JavaSourceEquivalence javaSourceEquivalence;
     private final PrerequisiteAccessService prerequisiteAccess;
     private final AttemptWindowService attemptWindows;
@@ -41,10 +47,16 @@ public class FunctionalEvaluationService {
     public FunctionalEvaluationService(ChallengeRepository challengeRepository, UserRepository userRepository,
             SubmissionRepository submissionRepository, FunctionalEvaluationRepository evaluationRepository, Judge0Client judge0Client,
             SecurityEvaluationService securityEvaluationService, JavaSourceEquivalence javaSourceEquivalence, PrerequisiteAccessService prerequisiteAccess,
-            AttemptWindowService attemptWindows) {
+            AttemptWindowService attemptWindows, SecurityCorrectnessScoringService securityCorrectnessScoringService,
+            IndependentProblemSolvingService independentProblemSolvingService,
+            UnderstandingAssessmentRepository understandingAssessments, OverallLearningScoreService overallLearningScoreService) {
         this.challengeRepository = challengeRepository; this.userRepository = userRepository;
         this.submissionRepository = submissionRepository; this.evaluationRepository = evaluationRepository; this.judge0Client = judge0Client;
         this.securityEvaluationService = securityEvaluationService;
+        this.securityCorrectnessScoringService = securityCorrectnessScoringService;
+        this.independentProblemSolvingService = independentProblemSolvingService;
+        this.understandingAssessments = understandingAssessments;
+        this.overallLearningScoreService = overallLearningScoreService;
         this.javaSourceEquivalence = javaSourceEquivalence;
         this.prerequisiteAccess = prerequisiteAccess;
         this.attemptWindows = attemptWindows;
@@ -80,13 +92,21 @@ public class FunctionalEvaluationService {
                 Judge0ExecutionResult result = judge0Client.execute(challenge.getLanguage(), request.sourceCode(), testCase.getInputData());
                 log.info("functional evaluator completed evaluator=JUDGE0 submissionId={} status={} durationMs={}", submission.getId(),
                         result.completed() && result.accepted() ? "COMPLETED" : "FAILED", elapsedMs(judge0Started));
-                boolean testPassed = result.completed() && result.accepted()
-                        && normalizeOutput(testCase.getExpectedOutput()).equals(normalizeOutput(result.stdout()));
+                if (result.unverified()) {
+                    return saveResult(submission, FunctionalEvaluationStatus.UNVERIFIED, passed, testCases.size(), result.details());
+                }
+                if (result.compilationFailed()) {
+                    return saveResult(submission, FunctionalEvaluationStatus.COMPILATION_ERROR, passed, testCases.size(), result.details());
+                }
+                String expected = normalizeOutput(testCase.getExpectedOutput());
+                String actual = normalizeOutput(result.stdout());
+                boolean testPassed = result.completed() && result.accepted() && expected.equals(actual);
                 if (testPassed) passed++;
-                else if (firstFailure == null) firstFailure = result.details();
+                else if (firstFailure == null) firstFailure = result.details() == null || result.details().isBlank()
+                        ? "Expected output: " + expected + "; actual output: " + actual : result.details();
             }
         } catch (Judge0UnavailableException | IllegalArgumentException exception) {
-            return saveResult(submission, FunctionalEvaluationStatus.EVALUATION_ERROR, passed, testCases.size(), exception.getMessage());
+            return saveResult(submission, FunctionalEvaluationStatus.UNVERIFIED, passed, testCases.size(), exception.getMessage());
         }
         FunctionalEvaluationStatus status = passed == testCases.size() ? FunctionalEvaluationStatus.PASS : FunctionalEvaluationStatus.FAIL;
         FunctionalEvaluationResponse response = saveResult(submission, status, passed, testCases.size(), firstFailure);
@@ -108,12 +128,36 @@ public class FunctionalEvaluationService {
         FunctionalEvaluation evaluation = evaluationRepository.save(new FunctionalEvaluation(submission, status, passed, total, details));
         var securityEvaluation = status == FunctionalEvaluationStatus.PASS && "java".equalsIgnoreCase(submissionLanguage(submission))
                 ? securityEvaluationService.evaluateJava(submission, sourceCode(submission)) : null;
-        int score = learningScore(status, securityEvaluation);
+        SecurityCorrectnessResult securityCorrectness = securityEvaluation == null ? null
+                : securityCorrectnessScoringService.score(submission.getChallenge(),
+                        securityEvaluationService.evaluationsFor(submission.getId()));
+        if (securityCorrectness != null) {
+            submission.recordSecurityCorrectness(securityCorrectness.score(), securityCorrectness.status().name());
+        }
+        IndependentProblemSolvingResult independent = independentProblemSolvingService.score(submission.getUser().getId(),
+                submission.getChallenge().getId());
+        submission.recordIndependentProblemSolving(independent.score(),
+                independent.highestAssistance() == null ? "NONE" : independent.highestAssistance().name());
+        int functionalScore = functionalScore(status, passed, total);
+        UnderstandingAssessment understanding = understandingAssessments
+                .findFirstByUser_IdAndChallenge_IdOrderByIdDesc(submission.getUser().getId(), submission.getChallenge().getId())
+                .orElse(null);
+        if (understanding != null) submission.recordUnderstanding(understanding.getScore(), understanding.getStatus().name());
+        var overall = overallLearningScoreService.calculate(status, functionalScore, submission.getSecurityScore(),
+                securityCorrectness == null ? null : securityCorrectness.status(),
+                understanding == null ? null : understanding.getScore(), understanding == null ? null : understanding.getStatus(),
+                independent.score());
+        submission.recordOverallLearningScore(overall.displayedScore(), overall.verifiedFinalScore(), overall.scoreState(),
+                overall.challengeCompleted(), overall.challengeMastered());
         String rawAssessment = rawAssessment(status, securityEvaluation);
-        submission.recordAssessment(score, rawAssessment);
+        // rawAssessment is retained for compatibility; learningScore is now the Step 5 aggregate.
+        submission.recordAssessment(overall.displayedScore(), rawAssessment);
         return new FunctionalEvaluationResponse(evaluation.getSubmissionId(), evaluation.getStatus().name(),
                 evaluation.getPassedTests(), evaluation.getTotalTests(), securityEvaluation, submission.getAttemptNumber(),
-                5 - submission.getAttemptNumber(), score);
+                5 - submission.getAttemptNumber(), overall.displayedScore(), submission.getSecurityScore(), submission.getSecurityCorrectnessStatus(),
+                submission.getIndependentProblemSolvingScore(), submission.getHighestHintAssistance(), submission.getUnderstandingScore(),
+                submission.getUnderstandingAssessmentStatus(), overall.verifiedFinalScore(), overall.provisional(), overall.scoreState(),
+                overall.challengeCompleted(), overall.challengeMastered());
     }
 
     private String submissionLanguage(Submission submission) { return submission.getLanguage(); }
@@ -122,21 +166,27 @@ public class FunctionalEvaluationService {
     private String normalizeOutput(String output) {
         if (output == null) return "";
         String normalized = output.replace("\r\n", "\n").replace('\r', '\n');
-        while (normalized.endsWith("\n")) normalized = normalized.substring(0, normalized.length() - 1);
-        return normalized;
+        String[] lines = normalized.split("\n", -1);
+        for (int index = 0; index < lines.length; index++) lines[index] = lines[index].replaceFirst("[ \\t]+$", "");
+        int last = lines.length;
+        while (last > 0 && lines[last - 1].isEmpty()) last--;
+        return String.join("\n", java.util.Arrays.copyOf(lines, last));
     }
 
-    private int learningScore(FunctionalEvaluationStatus functional, com.securecode.ai.dto.SecurityEvaluationResponse security) {
-        if (functional != FunctionalEvaluationStatus.PASS) return 0;
-        if (security == null || !"COMPLETED".equals(security.status())) return 70;
-        // Semgrep's completed finding set is the persisted security evidence.  No findings is strong safe evidence.
-        if (!security.detected()) return 100;
-        return 25;
+    /**
+     * Step 1 of the learning score: functionality is worth at most 25 points.
+     * It deliberately has no authority to mark a challenge completed or mastered.
+     */
+    private int functionalScore(FunctionalEvaluationStatus status, int passed, int total) {
+        if ((status != FunctionalEvaluationStatus.PASS && status != FunctionalEvaluationStatus.FAIL) || total <= 0) return 0;
+        return (int) Math.round(25.0 * passed / total);
     }
 
     private String rawAssessment(FunctionalEvaluationStatus functional, com.securecode.ai.dto.SecurityEvaluationResponse security) {
         if (functional != FunctionalEvaluationStatus.PASS) return "FAIL";
-        if (security == null || !"COMPLETED".equals(security.status())) return "MOSTLY SAFE";
+        // An evaluator outage/unavailable result is not evidence that code is safe.  The
+        // persisted security-correctness gate is the authority for the final assessment.
+        if (security == null || !"COMPLETED".equals(security.status())) return "NOT_AVAILABLE";
         return security.detected() ? "STRONG VULNERABILITY" : "STRONG SAFE";
     }
 

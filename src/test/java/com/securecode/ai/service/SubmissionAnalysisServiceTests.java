@@ -97,6 +97,33 @@ class SubmissionAnalysisServiceTests {
     }
 
     @Test
+    void usesPersistedConflictGateInsteadOfAveragingItIntoASecurityPass() {
+        SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
+        FunctionalEvaluationRepository functionalEvaluations = Mockito.mock(FunctionalEvaluationRepository.class);
+        SecurityEvaluationRepository securityEvaluations = Mockito.mock(SecurityEvaluationRepository.class);
+        SecurityFindingEvidenceCodec codec = Mockito.mock(SecurityFindingEvidenceCodec.class);
+        Submission submission = Mockito.mock(Submission.class);
+        Challenge challenge = new Challenge(15, "Conflict", "Description", "java", null, null, null, null, Difficulty.EASY);
+        when(submission.getUser()).thenReturn(new User("student@example.com", "unused", Role.STUDENT));
+        when(submission.getChallenge()).thenReturn(challenge);
+        when(submission.getLanguage()).thenReturn("java");
+        when(submission.getSourceCode()).thenReturn("class Main { }");
+        when(submission.getSecurityCorrectnessStatus()).thenReturn("CONFLICTING_EVIDENCE");
+        when(submissions.findById(10L)).thenReturn(Optional.of(submission));
+        when(functionalEvaluations.findBySubmission_Id(10L))
+                .thenReturn(Optional.of(new FunctionalEvaluation(submission, FunctionalEvaluationStatus.PASS, 1, 1, null)));
+        when(securityEvaluations.findBySubmission_Id(10L)).thenReturn(List.of(
+                new SecurityEvaluation(submission, "SEMGREP", false, null, null, "INFO", null, "{}", "COMPLETED", null),
+                new SecurityEvaluation(submission, "SPOTBUGS", true, "Injection", "CWE-89", "HIGH", null, "{}", "COMPLETED", null)));
+
+        SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
+                securityEvaluations, codec).getForStudent(10L, "student@example.com");
+
+        assertThat(response.overallDecision()).isEqualTo("INCONCLUSIVE");
+        assertThat(response.assessment().evidenceState()).isEqualTo("CONFLICTING EVIDENCE");
+    }
+
+    @Test
     void marksUncertainGroqAdviceAsUncertainRatherThanSafeEvidence() {
         SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
         FunctionalEvaluationRepository functionalEvaluations = Mockito.mock(FunctionalEvaluationRepository.class);
@@ -123,5 +150,32 @@ class SubmissionAnalysisServiceTests {
                 .extracting(item -> item.result()).containsExactly("UNCERTAIN");
         assertThat(response.evidenceSummary().safeCount()).isZero();
         assertThat(response.learningFeedback().state()).isEqualTo("UNCERTAIN");
+    }
+
+    @Test
+    void doesNotRenderStatusLessLegacyEvaluatorRowsAsSafe() {
+        SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
+        FunctionalEvaluationRepository functionalEvaluations = Mockito.mock(FunctionalEvaluationRepository.class);
+        SecurityEvaluationRepository securityEvaluations = Mockito.mock(SecurityEvaluationRepository.class);
+        SecurityFindingEvidenceCodec codec = Mockito.mock(SecurityFindingEvidenceCodec.class);
+        Submission submission = Mockito.mock(Submission.class);
+        Challenge challenge = new Challenge(16, "Legacy scan", "Description", "java", null, null, null, null, Difficulty.EASY);
+        when(submission.getUser()).thenReturn(new User("student@example.com", "unused", Role.STUDENT));
+        when(submission.getChallenge()).thenReturn(challenge);
+        when(submission.getLanguage()).thenReturn("java");
+        when(submission.getSourceCode()).thenReturn("class Main { }");
+        when(submissions.findById(11L)).thenReturn(Optional.of(submission));
+        when(functionalEvaluations.findBySubmission_Id(11L))
+                .thenReturn(Optional.of(new FunctionalEvaluation(submission, FunctionalEvaluationStatus.PASS, 1, 1, null)));
+        when(securityEvaluations.findBySubmission_Id(11L)).thenReturn(List.of(
+                new SecurityEvaluation(submission, "SEMGREP", false, null, null, "INFO", null, "{}", null, "legacy failure")));
+
+        SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
+                securityEvaluations, codec).getForStudent(11L, "student@example.com");
+
+        assertThat(response.evaluators()).filteredOn(item -> item.evaluator().equals("SEMGREP"))
+                .extracting(item -> item.result()).containsExactly("UNVERIFIED");
+        assertThat(response.evaluators()).filteredOn(item -> item.evaluator().equals("SEMGREP"))
+                .allSatisfy(item -> assertThat(item.available()).isFalse());
     }
 }
