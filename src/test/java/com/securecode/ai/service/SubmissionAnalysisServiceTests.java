@@ -42,7 +42,9 @@ class SubmissionAnalysisServiceTests {
         when(securityEvaluations.findBySubmission_Id(7L)).thenReturn(List.of(
                 new SecurityEvaluation(submission, "SEMGREP", false, null, null, "INFO", null, "{}", "COMPLETED", null),
                 new SecurityEvaluation(submission, "SPOTBUGS", false, null, null, "INFO", null, "{}", "COMPLETED", null),
-                new SecurityEvaluation(submission, "GROQ", false, null, null, "INFO", null, "{}", "COMPLETED", null)));
+                new SecurityEvaluation(submission, "GROQ", false, null, null, "INFO", null, "{}", "COMPLETED", null,
+                        "SAFE", "Keep using parameter binding for every query path.",
+                        "You used parameter binding, so user input is kept separate from SQL syntax.")));
 
         SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
                 securityEvaluations, findingEvidenceCodec).getForStudent(7L, "student@example.com");
@@ -60,6 +62,12 @@ class SubmissionAnalysisServiceTests {
                 .containsExactly("JUDGE0:PASS", "SEMGREP:SAFE", "SPOTBUGS:SAFE", "GROQ:SAFE");
         assertThat(response.evaluators()).filteredOn(item -> item.evaluator().equals("GROQ"))
                 .extracting(item -> item.displayName()).containsExactly("LLM");
+        assertThat(response.learningFeedback()).satisfies(feedback -> {
+            assertThat(feedback.state()).isEqualTo("SAFE");
+            assertThat(feedback.summary()).contains("parameter binding");
+            assertThat(feedback.guidance()).contains("every query path");
+            assertThat(feedback.available()).isTrue();
+        });
     }
 
     @Test
@@ -86,5 +94,34 @@ class SubmissionAnalysisServiceTests {
         assertThat(response.assessment().evidenceState()).isEqualTo("Functional Fail");
         assertThat(response.evaluators()).filteredOn(item -> item.evaluator().equals("GROQ"))
                 .extracting(item -> item.result()).containsExactly("NOT_RUN");
+    }
+
+    @Test
+    void marksUncertainGroqAdviceAsUncertainRatherThanSafeEvidence() {
+        SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
+        FunctionalEvaluationRepository functionalEvaluations = Mockito.mock(FunctionalEvaluationRepository.class);
+        SecurityEvaluationRepository securityEvaluations = Mockito.mock(SecurityEvaluationRepository.class);
+        SecurityFindingEvidenceCodec codec = Mockito.mock(SecurityFindingEvidenceCodec.class);
+        Submission submission = Mockito.mock(Submission.class);
+        Challenge challenge = new Challenge(14, "Uncertain challenge", "Full description", "java", null, null, null, null, Difficulty.EASY);
+        when(submission.getUser()).thenReturn(new User("student@example.com", "unused", Role.STUDENT));
+        when(submission.getChallenge()).thenReturn(challenge);
+        when(submission.getLanguage()).thenReturn("java");
+        when(submission.getSourceCode()).thenReturn("class Main { }");
+        when(submissions.findById(9L)).thenReturn(Optional.of(submission));
+        when(functionalEvaluations.findBySubmission_Id(9L))
+                .thenReturn(Optional.of(new FunctionalEvaluation(submission, FunctionalEvaluationStatus.PASS, 1, 1, null)));
+        when(securityEvaluations.findBySubmission_Id(9L)).thenReturn(List.of(
+                new SecurityEvaluation(submission, "GROQ", false, null, null, "INFO", null, "{}", "COMPLETED", null,
+                        "UNCERTAIN", "Inspect every input-to-sink path and use the challenge's safe API.",
+                        "The available code does not establish whether every path handles untrusted input safely.")));
+
+        SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
+                securityEvaluations, codec).getForStudent(9L, "student@example.com");
+
+        assertThat(response.evaluators()).filteredOn(item -> item.evaluator().equals("GROQ"))
+                .extracting(item -> item.result()).containsExactly("UNCERTAIN");
+        assertThat(response.evidenceSummary().safeCount()).isZero();
+        assertThat(response.learningFeedback().state()).isEqualTo("UNCERTAIN");
     }
 }

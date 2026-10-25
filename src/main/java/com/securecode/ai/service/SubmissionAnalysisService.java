@@ -6,6 +6,7 @@ import com.securecode.ai.dto.EvaluatorFindingsResponse;
 import com.securecode.ai.dto.EvidenceSummaryResponse;
 import com.securecode.ai.dto.SecurityFindingDisplayResponse;
 import com.securecode.ai.dto.SubmissionAnalysisResponse;
+import com.securecode.ai.dto.LearningFeedbackResponse;
 import com.securecode.ai.dto.SubmissionContextResponse;
 import com.securecode.ai.evaluation.common.SecurityFindingEvidenceCodec;
 import com.securecode.ai.evaluation.common.StoredSecurityFinding;
@@ -86,8 +87,39 @@ public class SubmissionAnalysisService {
         Assessment assessment = assessment(functional.getStatus(), evidence);
         return new SubmissionAnalysisResponse(submissionId, assessment.overallDecision(), evaluators, evidence,
                 new AssessmentResponse(assessment.evidenceState()), findingGroups(securityByEvaluator),
+                learningFeedback(functional.getStatus(), evidence, securityByEvaluator.get("GROQ")),
                 new SubmissionContextResponse(submission.getChallenge().getChallengeNumber(), catalogNumber(submission.getChallenge()), submission.getChallenge().getTitle(),
                         submission.getChallenge().getDescription(), submission.getLanguage(), submission.getSourceCode()));
+    }
+
+    private LearningFeedbackResponse learningFeedback(FunctionalEvaluationStatus functionalStatus,
+            EvidenceSummaryResponse evidence, SecurityEvaluation groq) {
+        if (functionalStatus == FunctionalEvaluationStatus.FAIL) return null;
+        if (groq == null || !"COMPLETED".equals(groq.getEvaluatorStatus()) || groq.getAssessment() == null
+                || groq.getFeedbackSummary() == null || groq.getFeedbackSummary().isBlank()
+                || groq.getRemediation() == null || groq.getRemediation().isBlank()) {
+            String detail = groq == null ? "The LLM learning evaluator was not run for this submission."
+                    : groq.getEvaluatorError() == null || groq.getEvaluatorError().isBlank()
+                    ? "The LLM learning evaluator did not return usable feedback."
+                    : "The LLM learning evaluator was unavailable: " + groq.getEvaluatorError();
+            return new LearningFeedbackResponse("UNAVAILABLE", "Learning feedback unavailable", detail,
+                    "Use the available evaluator results and security findings to guide your next revision.", "LLM", false);
+        }
+        String state = groq.getAssessment();
+        if (evidence.safeCount() > 0 && evidence.vulnerableCount() > 0) {
+            return new LearningFeedbackResponse("UNCERTAIN", "Cautious next step",
+                    "Available security evaluators disagree. The LLM review says: " + groq.getFeedbackSummary(),
+                    groq.getRemediation(), "LLM", true);
+        }
+        return switch (state) {
+            case "SAFE" -> new LearningFeedbackResponse("SAFE", "What you did well", groq.getFeedbackSummary(),
+                    groq.getRemediation(), "LLM", true);
+            case "VULNERABLE" -> new LearningFeedbackResponse("VULNERABLE", "Security improvement needed",
+                    groq.getFeedbackSummary(),
+                    groq.getRemediation(), "LLM", true);
+            default -> new LearningFeedbackResponse("UNCERTAIN", "Cautious next step",
+                    groq.getFeedbackSummary(), groq.getRemediation(), "LLM", true);
+        };
     }
 
     private List<EvaluatorFindingsResponse> findingGroups(Map<String, SecurityEvaluation> securityByEvaluator) {
@@ -117,6 +149,10 @@ public class SubmissionAnalysisService {
         }
         String status = evaluation.getEvaluatorStatus();
         if ("COMPLETED".equals(status)) {
+            if ("GROQ".equals(definition.id()) && "UNCERTAIN".equals(evaluation.getAssessment())) {
+                return new EvaluatorResultResponse(definition.id(), definition.displayName(), "UNCERTAIN", true,
+                        "The LLM could not reach a confident conclusion");
+            }
             return new EvaluatorResultResponse(definition.id(), definition.displayName(),
                     evaluation.isDetected() ? "VULNERABLE" : "SAFE", true, null);
         }
@@ -138,6 +174,8 @@ public class SubmissionAnalysisService {
             if ("GROK".equalsIgnoreCase(evaluation.getEvaluatorName())) continue;
             boolean completed = "COMPLETED".equals(evaluation.getEvaluatorStatus())
                     || (evaluation.getEvaluatorStatus() == null && !"EVALUATOR_ERROR".equals(evaluation.getSeverity()));
+            if ("GROQ".equalsIgnoreCase(evaluation.getEvaluatorName())
+                    && "UNCERTAIN".equals(evaluation.getAssessment())) continue;
             if (!completed) continue;
             if (evaluation.isDetected()) vulnerable++;
             else safe++;

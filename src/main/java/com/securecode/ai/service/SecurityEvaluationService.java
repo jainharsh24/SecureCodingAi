@@ -18,6 +18,7 @@ import com.securecode.ai.evaluation.SecurityEvaluationStatus;
 import com.securecode.ai.evaluation.config.SecurityEvaluationProperties;
 import com.securecode.ai.repository.SecurityEvaluationRepository;
 import java.util.List;
+import java.math.BigDecimal;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -82,7 +83,7 @@ public class SecurityEvaluationService {
         GroqSecurityResult groqResult = resolve("GROQ", submissionId, groq,
                 message -> new GroqSecurityResult(SecurityEvaluationStatus.TIMEOUT, null, List.of(), message),
                 message -> new GroqSecurityResult(SecurityEvaluationStatus.ERROR, null, List.of(), message));
-        persist(submission, "GROQ", groqResult.findings(), groqResult.status().name(), groqResult.error());
+        persistGroq(submission, groqResult);
 
         log.info("security evaluation completed submissionId={} durationMs={}", submissionId, elapsedMs(started));
 
@@ -143,6 +144,19 @@ public class SecurityEvaluationService {
         securityEvaluationRepository.save(new SecurityEvaluation(submission, evaluator, !findings.isEmpty(),
                 firstFinding == null ? null : firstFinding.vulnerabilityType(), firstFinding == null ? null : firstFinding.cwe(),
                 severity, null, findingEvidenceCodec.encode(findings), status, error));
+    }
+
+    private void persistGroq(Submission submission, GroqSecurityResult result) {
+        SecurityFinding firstFinding = result.findings().isEmpty() ? null : result.findings().getFirst();
+        var assessment = result.assessment();
+        String severity = firstFinding == null && "COMPLETED".equals(result.status().name()) ? "INFO"
+                : firstFinding == null ? "EVALUATOR_ERROR" : firstFinding.severity();
+        securityEvaluationRepository.save(new SecurityEvaluation(submission, "GROQ", !result.findings().isEmpty(),
+                firstFinding == null ? null : firstFinding.vulnerabilityType(), firstFinding == null ? null : firstFinding.cwe(),
+                severity, assessment == null ? null : BigDecimal.valueOf(assessment.confidence()),
+                findingEvidenceCodec.encode(result.findings()), result.status().name(), result.error(),
+                assessment == null ? null : assessment.status(), assessment == null ? null : assessment.remediation(),
+                assessment == null ? null : assessment.evidence()));
     }
 
     private SecurityFindingResponse toResponse(SecurityFinding finding) {

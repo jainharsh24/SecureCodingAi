@@ -63,6 +63,9 @@ class SecurityEvaluationServiceGroqTests {
                 .filter(item -> "GROQ".equals(item.getEvaluatorName())).findFirst().orElseThrow();
         assertThat(groqEvaluation.getEvaluatorStatus()).isEqualTo("COMPLETED");
         assertThat(groqEvaluation.isDetected()).isTrue();
+        assertThat(groqEvaluation.getAssessment()).isEqualTo("VULNERABLE");
+        assertThat(groqEvaluation.getFeedbackSummary()).isEqualTo("Unsafe SQL concatenation");
+        assertThat(groqEvaluation.getRemediation()).isEqualTo("Use parameters");
         assertThat(codec.decode(groqEvaluation.getEvidence())).singleElement().satisfies(finding -> {
             assertThat(finding.finding()).isEqualTo("SQL Injection");
             assertThat(finding.cwe()).isEqualTo("CWE-89");

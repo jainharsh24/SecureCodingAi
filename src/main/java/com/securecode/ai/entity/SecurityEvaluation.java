@@ -24,12 +24,22 @@ public class SecurityEvaluation {
     private String evidence;
     @Column(name = "evaluator_status") private String evaluatorStatus;
     @Column(name = "evaluator_error") private String evaluatorError;
+    @Column(name = "assessment") private String assessment;
+    @Column(name = "remediation") private String remediation;
+    @Column(name = "feedback_summary") private String feedbackSummary;
     protected SecurityEvaluation() { }
     public SecurityEvaluation(Submission submission, String evaluatorName, boolean detected, String vulnerabilityType,
             String cwe, String severity, BigDecimal confidence, String evidence, String evaluatorStatus, String evaluatorError) {
+        this(submission, evaluatorName, detected, vulnerabilityType, cwe, severity, confidence, evidence,
+                evaluatorStatus, evaluatorError, null, null, null);
+    }
+    public SecurityEvaluation(Submission submission, String evaluatorName, boolean detected, String vulnerabilityType,
+            String cwe, String severity, BigDecimal confidence, String evidence, String evaluatorStatus, String evaluatorError,
+            String assessment, String remediation, String feedbackSummary) {
         this.submission = submission; this.evaluatorName = evaluatorName; this.detected = detected;
         this.vulnerabilityType = vulnerabilityType; this.cwe = cwe; this.severity = severity;
         this.confidence = confidence; this.evidence = evidence; this.evaluatorStatus = evaluatorStatus; this.evaluatorError = evaluatorError;
+        this.assessment = assessment; this.remediation = remediation; this.feedbackSummary = feedbackSummary;
     }
     public String getEvaluatorName() { return evaluatorName; }
     public boolean isDetected() { return detected; }
@@ -39,4 +49,7 @@ public class SecurityEvaluation {
     public String getEvaluatorStatus() { return evaluatorStatus; }
     public String getEvaluatorError() { return evaluatorError; }
     public String getEvidence() { return evidence; }
+    public String getAssessment() { return assessment; }
+    public String getRemediation() { return remediation; }
+    public String getFeedbackSummary() { return feedbackSummary; }
 }
