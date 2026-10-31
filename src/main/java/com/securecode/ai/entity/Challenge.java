@@ -51,6 +51,12 @@ public class Challenge {
     }
     public void replaceTestCases(List<TestCase> newTestCases) { testCases.clear(); newTestCases.forEach(this::addTestCase); }
     private void addTestCase(TestCase testCase) { testCase.setChallenge(this); testCases.add(testCase); }
+    public void replacePrerequisites(Set<Challenge> newPrerequisites) {
+        this.prerequisites.clear();
+        if (newPrerequisites != null) {
+            this.prerequisites.addAll(newPrerequisites);
+        }
+    }
     public Long getId() { return id; }
     public long getChallengeNumber() { return challengeNumber; }
     public String getTitle() { return title; }

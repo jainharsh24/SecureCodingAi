@@ -19,3 +19,18 @@ test("number sorting composes with difficulty filtering", () => {
   assert.deepEqual(filterAndSortChallenges(catalog, { difficulty: "BASIC", sort: "number-desc" }).map(studentCatalogNumber),
     Array.from({ length: 16 }, (_, index) => 16 - index));
 });
+
+test("difficulty sorting follows the learning progression and preserves filters", () => {
+  const challenges = [
+    { ...catalog[0], title: "Hard first alphabetically", difficulty: "HARD" },
+    { ...catalog[1], title: "Medium", difficulty: "MEDIUM" },
+    { ...catalog[2], title: "Basic", difficulty: "BASIC" },
+    { ...catalog[3], title: "Easy", difficulty: "EASY" },
+    { ...catalog[4], title: "Hard second alphabetically", difficulty: "HARD" }
+  ];
+
+  assert.deepEqual(filterAndSortChallenges(challenges, { sort: "difficulty" }).map(challenge => challenge.difficulty),
+    ["BASIC", "EASY", "MEDIUM", "HARD", "HARD"]);
+  assert.deepEqual(filterAndSortChallenges(challenges, { difficulty: "HARD", sort: "difficulty" }).map(challenge => challenge.title),
+    ["Hard first alphabetically", "Hard second alphabetically"]);
+});

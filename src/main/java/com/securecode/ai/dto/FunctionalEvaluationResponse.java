@@ -4,4 +4,4 @@ public record FunctionalEvaluationResponse(Long submissionId, String status, int
         Integer securityScore, String securityCorrectnessStatus, Integer independentProblemSolvingScore,
         String highestHintAssistance, Integer understandingScore, String understandingAssessmentStatus,
         Integer verifiedFinalScore, boolean provisional, String learningScoreState, boolean challengeCompleted,
-        boolean challengeMastered) { }
+        boolean challengeMastered, String understandingAssessmentSessionToken) { }

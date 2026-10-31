@@ -19,6 +19,7 @@ public class UnderstandingAssessment {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @ManyToOne(optional = false) @JoinColumn(name = "user_id", nullable = false) private User user;
     @ManyToOne(optional = false) @JoinColumn(name = "challenge_id", nullable = false) private Challenge challenge;
+    @ManyToOne @JoinColumn(name = "submission_id") private Submission submission;
     @Column(nullable = false, columnDefinition = "TEXT") private String question;
     @Column(nullable = false, columnDefinition = "TEXT") private String answer;
     @Column(name = "root_cause_points", nullable = false) private int rootCausePoints;
@@ -42,7 +43,10 @@ public class UnderstandingAssessment {
         this.rootCauseFeedback = rootCauseFeedback; this.mechanismFeedback = mechanismFeedback;
         this.preventionFeedback = preventionFeedback; this.unavailableReason = unavailableReason;
     }
+    public void associateWith(Submission submission) { this.submission = submission; }
+    public Submission getSubmission() { return submission; }
     public Long getId() { return id; }
+    public String getAnswer() { return answer; }
     public int getRootCausePoints() { return rootCausePoints; }
     public int getMechanismPoints() { return mechanismPoints; }
     public int getPreventionPoints() { return preventionPoints; }

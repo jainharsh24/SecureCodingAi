@@ -5,7 +5,7 @@ import java.util.List;
 public record SubmissionAnalysisResponse(Long submissionId, String overallDecision, List<EvaluatorResultResponse> evaluators,
         EvidenceSummaryResponse evidenceSummary, AssessmentResponse assessment, List<EvaluatorFindingsResponse> findings,
         LearningFeedbackResponse learningFeedback, SubmissionContextResponse submissionContext,
-        LearningScoreBreakdownResponse learningScore) {
+        LearningScoreBreakdownResponse learningScore, String submittedExplanation) {
     public SubmissionAnalysisResponse {
         evaluators = List.copyOf(evaluators);
         findings = List.copyOf(findings);

@@ -9,6 +9,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "submissions")
@@ -30,11 +31,14 @@ public class Submission {
     @Column(name = "learning_score_state") private String learningScoreState;
     @Column(name = "challenge_completed") private Boolean challengeCompleted;
     @Column(name = "challenge_mastered") private Boolean challengeMastered;
+    @Column(name = "understanding_assessment_session_token") private String understandingAssessmentSessionToken;
     @Column(name = "raw_assessment") private String rawAssessment;
     @Column(name = "submitted_at", insertable = false, updatable = false) private Instant submittedAt;
     protected Submission() { }
     public Submission(User user, Challenge challenge, String sourceCode, int attemptNumber) {
         this.user = user; this.challenge = challenge; this.language = challenge.getLanguage(); this.sourceCode = sourceCode; this.attemptNumber = attemptNumber;
+        // Only the just-created analysis flow receives this opaque, one-time capability.
+        this.understandingAssessmentSessionToken = UUID.randomUUID().toString();
     }
     public Long getId() { return id; }
     public User getUser() { return user; }
@@ -54,11 +58,17 @@ public class Submission {
     public Boolean getChallengeCompleted() { return challengeCompleted; }
     public Boolean getChallengeMastered() { return challengeMastered; }
     public String getRawAssessment() { return rawAssessment; }
+    public String getUnderstandingAssessmentSessionToken() { return understandingAssessmentSessionToken; }
     public Instant getSubmittedAt() { return submittedAt; }
     public void recordAssessment(int score, String rawAssessment) { this.learningScore = score; this.rawAssessment = rawAssessment; }
-    public void recordSecurityCorrectness(int score, String status) { this.securityScore = score; this.securityCorrectnessStatus = status; }
+    public void recordSecurityCorrectness(Integer score, String status) { this.securityScore = score; this.securityCorrectnessStatus = status; }
     public void recordIndependentProblemSolving(int score, String assistance) { this.independentProblemSolvingScore = score; this.highestHintAssistance = assistance; }
     public void recordUnderstanding(Integer score, String status) { this.understandingScore = score; this.understandingAssessmentStatus = status; }
+    public boolean hasActiveUnderstandingAssessmentSession(String token) {
+        return token != null && token.equals(understandingAssessmentSessionToken);
+    }
+    /** Clearing the one-time capability makes a history visit permanently read-only. */
+    public void closeUnderstandingAssessmentSession() { this.understandingAssessmentSessionToken = null; }
     public void recordOverallLearningScore(int score, Integer verifiedScore, String state, boolean completed, boolean mastered) {
         this.learningScore = score; this.verifiedFinalScore = verifiedScore; this.learningScoreState = state;
         this.challengeCompleted = completed; this.challengeMastered = mastered;

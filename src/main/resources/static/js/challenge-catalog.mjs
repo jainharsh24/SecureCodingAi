@@ -1,5 +1,12 @@
 export const studentCatalogNumber = challenge => challenge.catalogNumber ?? challenge.challengeNumber;
 
+const difficultyRank = {
+  BASIC: 0,
+  EASY: 1,
+  MEDIUM: 2,
+  HARD: 3
+};
+
 export function filterAndSortChallenges(challenges, { query = "", difficulty = "", sort = "title" } = {}) {
   const normalizedQuery = String(query).trim().toLowerCase();
   const numericCatalogQuery = /^\d+$/u.test(normalizedQuery) ? Number(normalizedQuery) : null;
@@ -13,7 +20,8 @@ export function filterAndSortChallenges(challenges, { query = "", difficulty = "
   return result.toSorted((left, right) => {
     if (sort === "number-asc") return studentCatalogNumber(left) - studentCatalogNumber(right);
     if (sort === "number-desc") return studentCatalogNumber(right) - studentCatalogNumber(left);
-    if (sort === "difficulty") return (left.difficulty ?? "").localeCompare(right.difficulty ?? "") || left.title.localeCompare(right.title);
+    if (sort === "difficulty") return (difficultyRank[left.difficulty] ?? Number.MAX_SAFE_INTEGER) - (difficultyRank[right.difficulty] ?? Number.MAX_SAFE_INTEGER)
+      || left.title.localeCompare(right.title);
     if (sort === "attempts") return left.attemptsRemaining - right.attemptsRemaining || left.title.localeCompare(right.title);
     return left.title.localeCompare(right.title);
   });

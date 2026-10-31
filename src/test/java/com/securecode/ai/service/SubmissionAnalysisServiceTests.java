@@ -11,17 +11,50 @@ import com.securecode.ai.entity.Difficulty;
 import com.securecode.ai.entity.Role;
 import com.securecode.ai.entity.SecurityEvaluation;
 import com.securecode.ai.entity.Submission;
+import com.securecode.ai.entity.UnderstandingAssessment;
 import com.securecode.ai.entity.User;
 import com.securecode.ai.evaluation.common.SecurityFindingEvidenceCodec;
 import com.securecode.ai.repository.FunctionalEvaluationRepository;
 import com.securecode.ai.repository.SecurityEvaluationRepository;
 import com.securecode.ai.repository.SubmissionRepository;
+import com.securecode.ai.repository.UnderstandingAssessmentRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 class SubmissionAnalysisServiceTests {
+
+    @Test
+    void returnsOnlyTheExplanationAssociatedWithTheSelectedSubmission() {
+        SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
+        FunctionalEvaluationRepository functionalEvaluations = Mockito.mock(FunctionalEvaluationRepository.class);
+        SecurityEvaluationRepository securityEvaluations = Mockito.mock(SecurityEvaluationRepository.class);
+        UnderstandingAssessmentRepository understandingAssessments = Mockito.mock(UnderstandingAssessmentRepository.class);
+        SecurityFindingEvidenceCodec codec = Mockito.mock(SecurityFindingEvidenceCodec.class);
+        Submission submission = Mockito.mock(Submission.class);
+        User user = Mockito.mock(User.class);
+        UnderstandingAssessment selectedExplanation = Mockito.mock(UnderstandingAssessment.class);
+        Challenge challenge = new Challenge(18, "Saved explanation", "Description", "java", null, null, null, null, Difficulty.EASY);
+        when(user.getEmail()).thenReturn("student@example.com");
+        when(user.getId()).thenReturn(42L);
+        when(submission.getUser()).thenReturn(user);
+        when(submission.getChallenge()).thenReturn(challenge);
+        when(submission.getLanguage()).thenReturn("java");
+        when(submission.getSourceCode()).thenReturn("class Main { }");
+        when(submissions.findById(21L)).thenReturn(Optional.of(submission));
+        when(functionalEvaluations.findBySubmission_Id(21L))
+                .thenReturn(Optional.of(new FunctionalEvaluation(submission, FunctionalEvaluationStatus.PASS, 1, 1, null)));
+        when(securityEvaluations.findBySubmission_Id(21L)).thenReturn(List.of());
+        when(understandingAssessments.findFirstByUser_IdAndSubmission_IdOrderByIdDesc(42L, 21L))
+                .thenReturn(Optional.of(selectedExplanation));
+        when(selectedExplanation.getAnswer()).thenReturn("This explanation belongs to submission 21.");
+
+        SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
+                securityEvaluations, codec, null, understandingAssessments).getForStudent(21L, "student@example.com");
+
+        assertThat(response.submittedExplanation()).isEqualTo("This explanation belongs to submission 21.");
+    }
 
     @Test
     void returnsPersistedSemgrepEvidenceAndUnavailableFutureEvaluators() {
@@ -177,5 +210,36 @@ class SubmissionAnalysisServiceTests {
                 .extracting(item -> item.result()).containsExactly("UNVERIFIED");
         assertThat(response.evaluators()).filteredOn(item -> item.evaluator().equals("SEMGREP"))
                 .allSatisfy(item -> assertThat(item.available()).isFalse());
+    }
+
+    @Test
+    void marksTheAssessmentUnverifiedAndReturnsNoPercentagesWhenNoEvaluatorHasAValidVerdict() {
+        SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
+        FunctionalEvaluationRepository functionalEvaluations = Mockito.mock(FunctionalEvaluationRepository.class);
+        SecurityEvaluationRepository securityEvaluations = Mockito.mock(SecurityEvaluationRepository.class);
+        SecurityFindingEvidenceCodec codec = Mockito.mock(SecurityFindingEvidenceCodec.class);
+        Submission submission = Mockito.mock(Submission.class);
+        Challenge challenge = new Challenge(17, "Unavailable scan", "Description", "java", null, null, null, null, Difficulty.EASY);
+        when(submission.getUser()).thenReturn(new User("student@example.com", "unused", Role.STUDENT));
+        when(submission.getChallenge()).thenReturn(challenge);
+        when(submission.getLanguage()).thenReturn("java");
+        when(submission.getSourceCode()).thenReturn("class Main { }");
+        when(submissions.findById(12L)).thenReturn(Optional.of(submission));
+        when(functionalEvaluations.findBySubmission_Id(12L))
+                .thenReturn(Optional.of(new FunctionalEvaluation(submission, FunctionalEvaluationStatus.PASS, 1, 1, null)));
+        when(securityEvaluations.findBySubmission_Id(12L)).thenReturn(List.of(
+                new SecurityEvaluation(submission, "SEMGREP", false, null, null, "EVALUATOR_ERROR", null, "{}", "TIMEOUT", "timed out"),
+                new SecurityEvaluation(submission, "GROQ", false, null, null, "INFO", null, "{}", "COMPLETED", null,
+                        null, null, null)));
+
+        SubmissionAnalysisResponse response = new SubmissionAnalysisService(submissions, functionalEvaluations,
+                securityEvaluations, codec).getForStudent(12L, "student@example.com");
+
+        assertThat(response.evidenceSummary().validEvaluatorCount()).isZero();
+        assertThat(response.evidenceSummary().safeEvidencePercent()).isZero();
+        assertThat(response.evidenceSummary().vulnerabilityEvidencePercent()).isZero();
+        assertThat(response.assessment().evidenceState()).isEqualTo("UNVERIFIED");
+        assertThat(response.evaluators()).filteredOn(item -> item.evaluator().equals("GROQ"))
+                .extracting(item -> item.result()).containsExactly("UNVERIFIED");
     }
 }

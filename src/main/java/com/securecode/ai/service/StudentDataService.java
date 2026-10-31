@@ -15,6 +15,7 @@ import com.securecode.ai.entity.FunctionalEvaluationStatus;
 import com.securecode.ai.entity.SecurityEvaluation;
 import com.securecode.ai.entity.Submission;
 import com.securecode.ai.entity.User;
+import com.securecode.ai.evaluation.common.SecurityEvidenceSummary;
 import com.securecode.ai.repository.FunctionalEvaluationRepository;
 import com.securecode.ai.repository.SecurityEvaluationRepository;
 import com.securecode.ai.repository.SubmissionRepository;
@@ -60,15 +61,17 @@ public class StudentDataService {
     @Transactional(readOnly = true)
     public List<SubmissionHistoryResponse> history(String email) {
         user(email);
-        return submissions.findByUser_EmailOrderBySubmittedAtDesc(email).stream().map(this::historyItem).toList();
+        Map<Long, Integer> catalogNumbers = catalogNumbers();
+        return submissions.findByUser_EmailOrderBySubmittedAtDesc(email).stream().map(submission -> historyItem(submission, catalogNumbers)).toList();
     }
 
     @Transactional(readOnly = true)
     public List<SubmissionHistoryResponse> challengeAttempts(String email, Long challengeId) {
         user(email);
+        Map<Long, Integer> catalogNumbers = catalogNumbers();
         return submissions.findByUser_EmailAndChallenge_IdOrderByAttemptNumberAsc(email, challengeId).stream()
                 .sorted(Comparator.comparing(Submission::getSubmittedAt, Comparator.nullsLast(Comparator.naturalOrder())).reversed())
-                .limit(5).map(this::historyItem).toList();
+                .limit(5).map(submission -> historyItem(submission, catalogNumbers)).toList();
     }
 
     @Transactional(readOnly = true)
@@ -157,23 +160,27 @@ public class StudentDataService {
     private String bucket(Submission submission, boolean weekly) { var date = submission.getSubmittedAt().atZone(ZoneOffset.UTC); return weekly ? String.format("%d-W%02d", date.get(WeekFields.ISO.weekBasedYear()), date.get(WeekFields.ISO.weekOfWeekBasedYear())) : YearMonth.from(date).toString(); }
     private String subtype(Challenge challenge) { String value = challenge.getVulnerabilitySubtype(); return value == null || value.isBlank() ? "Unspecified" : value; }
 
-    private SubmissionHistoryResponse historyItem(Submission submission) {
+    private Map<Long, Integer> catalogNumbers() {
+        if (challenges == null) return Map.of();
+        List<Challenge> active = challenges.findByActiveTrueOrderByChallengeNumberAsc();
+        Map<Long, Integer> numbers = new java.util.HashMap<>();
+        for (int index = 0; index < active.size(); index++) numbers.put(active.get(index).getId(), index + 1);
+        return numbers;
+    }
+
+    private SubmissionHistoryResponse historyItem(Submission submission, Map<Long, Integer> catalogNumbers) {
         List<SecurityEvaluation> evidence = securities.findBySubmission_Id(submission.getId());
-        int completed = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus())).count();
-        int safe = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus()) && !e.isDetected()).count();
-        int safePercent = completed == 0 ? 0 : Math.round(safe * 100f / completed);
+        SecurityEvidenceSummary summary = SecurityEvidenceSummary.from(evidence);
         String functional = functionals.findBySubmission_Id(submission.getId()).map(e -> e.getStatus().name()).orElse("NOT_AVAILABLE");
-        return new SubmissionHistoryResponse(submission.getId(), submission.getChallenge().getId(), submission.getChallenge().getChallengeNumber(), submission.getChallenge().getTitle(),
+        return new SubmissionHistoryResponse(submission.getId(), submission.getChallenge().getId(), submission.getChallenge().getChallengeNumber(),
+                catalogNumbers.get(submission.getChallenge().getId()), submission.getChallenge().getTitle(),
                 submission.getChallenge().getDifficulty().name(), submission.getAttemptNumber(), submission.getSubmittedAt(), functional,
-                submission.getRawAssessment(), submission.getLearningScore(), safePercent, completed == 0 ? 0 : 100 - safePercent,
-                historyEvidenceState(submission, functional, evidence));
+                submission.getRawAssessment(), submission.getLearningScore(), summary.safePercent(), summary.vulnerabilityPercent(),
+                historyEvidenceState(submission, functional, evidence), submission.isVerifiedCompleted());
     }
 
     private int safeEvidencePercent(Submission submission) {
-        List<SecurityEvaluation> evidence = securities.findBySubmission_Id(submission.getId());
-        int completed = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus())).count();
-        int safe = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus()) && !e.isDetected()).count();
-        return completed == 0 ? 0 : Math.round(safe * 100f / completed);
+        return SecurityEvidenceSummary.from(securities.findBySubmission_Id(submission.getId())).safePercent();
     }
 
     private String subtype(Submission submission) {
@@ -203,6 +210,8 @@ public class StudentDataService {
         if ("FAIL".equals(functional)) return "Functional Fail";
         if ("STARTER_CODE".equals(functional)) return "INCOMPLETE ATTEMPT";
         if (!"PASS".equals(functional)) return "NOT_AVAILABLE";
+        SecurityEvidenceSummary summary = SecurityEvidenceSummary.from(evidence);
+        if (summary.validEvaluatorCount() == 0) return "UNVERIFIED";
         String securityStatus = submission.getSecurityCorrectnessStatus();
         if ("TARGETED_VULNERABILITY".equals(securityStatus)) return "TARGETED VULNERABILITY";
         if ("CONFLICTING_EVIDENCE".equals(securityStatus)) return "CONFLICTING EVIDENCE";
@@ -217,10 +226,8 @@ public class StudentDataService {
                 || "UNVERIFIED".equals(securityStatus) || "NOT_RUN".equals(securityStatus)) {
             return "UNVERIFIED";
         }
-        int completedEvidence = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus())).count();
-        if (completedEvidence == 0) return "NO SECURITY EVIDENCE";
-        int safe = (int) evidence.stream().filter(e -> "COMPLETED".equals(e.getEvaluatorStatus()) && !e.isDetected()).count();
-        int vulnerable = completedEvidence - safe;
+        int safe = summary.safeCount();
+        int vulnerable = summary.vulnerableCount();
         if (vulnerable == 0) return "STRONG SAFE EVIDENCE";
         if (safe == 0) return "STRONG VULNERABILITY EVIDENCE";
         if (safe > vulnerable) return "MOSTLY SAFE — CONFLICT EXISTS";

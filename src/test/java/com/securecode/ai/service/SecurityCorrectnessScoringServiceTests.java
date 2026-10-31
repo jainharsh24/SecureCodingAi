@@ -46,25 +46,59 @@ class SecurityCorrectnessScoringServiceTests {
     }
 
     @Test
-    void safeAndVulnerableEvidenceIsConflictingNotSafe() {
+    void mixedValidVerdictsReceiveProportionalCreditButAConfirmedVulnerabilityBlocksMastery() {
         SecurityCorrectnessResult result = service.score(sqlChallenge(), List.of(
                 evaluation("SEMGREP", true, List.of(finding("SQL Injection", "CWE-89")), null),
                 evaluation("SPOTBUGS", false, List.of(), null),
                 evaluation("GROQ", false, List.of(), "SAFE")));
 
-        assertThat(result.score()).isZero();
-        assertThat(result.status()).isEqualTo(SecurityCorrectnessStatus.CONFLICTING_EVIDENCE);
+        assertThat(result.score()).isEqualTo(30);
+        assertThat(result.status()).isEqualTo(SecurityCorrectnessStatus.TARGETED_VULNERABILITY);
+        assertThat(result.blocksMastery()).isTrue();
     }
 
     @Test
-    void missingOrUnavailableEvaluatorIsUnverifiedRatherThanSafe() {
+    void unavailableEvaluatorsDoNotBlockVerifiedSafeAvailableStaticEvidence() {
         SecurityCorrectnessResult result = service.score(sqlChallenge(), List.of(
                 evaluation("SEMGREP", false, List.of(), null),
-                unavailable("SPOTBUGS"),
-                evaluation("GROQ", false, List.of(), "SAFE")));
+                evaluation("SPOTBUGS", false, List.of(), null),
+                unavailable("GROQ")));
 
-        assertThat(result.score()).isZero();
-        assertThat(result.status()).isEqualTo(SecurityCorrectnessStatus.UNVERIFIED);
+        assertThat(result.score()).isEqualTo(45);
+        assertThat(result.status()).isEqualTo(SecurityCorrectnessStatus.VERIFIED_SAFE);
+        assertThat(result.blocksMastery()).isFalse();
+    }
+
+    @Test
+    void aSingleValidSafeVerdictReceivesTheEntireSecurityPointPool() {
+        SecurityCorrectnessResult result = service.score(sqlChallenge(), List.of(
+                unavailable("SEMGREP"), unavailable("SPOTBUGS"), evaluation("GROQ", false, List.of(), "SAFE")));
+
+        assertThat(result.score()).isEqualTo(45);
+        assertThat(result.status()).isEqualTo(SecurityCorrectnessStatus.VERIFIED_SAFE);
+    }
+
+    @Test
+    void roundsAOneOfTwoSafeSplitConsistently() {
+        SecurityCorrectnessResult result = service.score(sqlChallenge(), List.of(
+                evaluation("SEMGREP", false, List.of(), null),
+                evaluation("SPOTBUGS", true, List.of(finding("SQL Injection", "CWE-89")), null)));
+
+        assertThat(result.score()).isEqualTo(23);
+        assertThat(result.status()).isEqualTo(SecurityCorrectnessStatus.TARGETED_VULNERABILITY);
+    }
+
+    @Test
+    void awardsZeroForValidFailuresAndLeavesNoValidResultUnverifiedWithoutAZeroScore() {
+        SecurityCorrectnessResult failed = service.score(sqlChallenge(), List.of(
+                evaluation("SEMGREP", true, List.of(finding("SQL Injection", "CWE-89")), null)));
+        SecurityCorrectnessResult unavailable = service.score(sqlChallenge(), List.of(
+                unavailable("SEMGREP"), unavailable("SPOTBUGS"), malformedGroq()));
+
+        assertThat(failed.score()).isZero();
+        assertThat(failed.status()).isEqualTo(SecurityCorrectnessStatus.TARGETED_VULNERABILITY);
+        assertThat(unavailable.score()).isNull();
+        assertThat(unavailable.status()).isEqualTo(SecurityCorrectnessStatus.UNVERIFIED);
     }
 
     private Challenge sqlChallenge() {
@@ -80,6 +114,11 @@ class SecurityCorrectnessScoringServiceTests {
     private SecurityEvaluation unavailable(String evaluator) {
         return new SecurityEvaluation(submission(), evaluator, false, null, null, "EVALUATOR_ERROR", null,
                 codec.encode(List.of()), "TIMEOUT", "timed out");
+    }
+
+    private SecurityEvaluation malformedGroq() {
+        return new SecurityEvaluation(submission(), "GROQ", false, null, null, "INFO", null,
+                codec.encode(List.of()), "COMPLETED", "invalid response", null, null, null);
     }
 
     private SecurityFinding finding(String type, String cwe) {

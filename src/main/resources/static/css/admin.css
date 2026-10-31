@@ -1,9 +1,9 @@
 .admin-layout .nav { margin-top:34px; }
 .admin-layout .sidebar-footer { display:block; }
-.admin-home { max-width:720px; }
+.admin-home { max-width:1200px; }
 .admin-home .card { margin-top:18px; }
 .admin-toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
-.admin-form { display:grid; gap:14px; max-width:780px; }
+.admin-form { display:grid; gap:14px; max-width:820px; }
 .admin-form textarea,.admin-form select { width:100%; min-height:44px; padding:11px 12px; border:1px solid #cfd5df; border-radius:8px; background:#fff; color:var(--ink); resize:vertical; }
 .admin-form textarea.code-input { min-height:160px; font-family:Consolas, monospace; }
 .admin-form .field { margin-top:0; }
@@ -11,4 +11,8 @@
 .admin-actions { display:flex; gap:8px; flex-wrap:wrap; }
 .admin-note { min-height:1.5em; color:var(--danger); }
 .admin-test { display:grid; grid-template-columns:1fr 1fr auto auto; gap:10px; align-items:end; padding:12px 0; border-bottom:1px solid var(--line); }
+.admin-select-prereqs { width:100%; min-height:140px; padding:8px 12px; border:1px solid #cfd5df; border-radius:8px; background:#fff; color:var(--ink); font-size:13px; }
+.admin-prereq-display { margin-bottom:6px; font-size:14px; }
+.prereq-tag { display:inline-flex; align-items:center; padding:3px 8px; margin:2px 4px 2px 0; border-radius:999px; background:#e0f2fe; color:#0369a1; font-size:12px; font-weight:700; }
+.user-chip { cursor:pointer; }
 @media (max-width:800px) { .admin-form-grid,.admin-test { grid-template-columns:1fr; } }

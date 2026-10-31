@@ -70,6 +70,54 @@ class OverallLearningScoreServiceTests {
         assertThat(result.challengeMastered()).isFalse();
     }
 
+    @Test
+    void recordedAssistancePreventsMasteryEvenWhenTheRawScoreMeetsTheThreshold() {
+        var result = score(FunctionalEvaluationStatus.PASS, 25, 45, SecurityCorrectnessStatus.VERIFIED_SAFE,
+                15, UnderstandingAssessmentStatus.ASSESSED, 5);
+
+        assertThat(result.displayedScore()).isEqualTo(90);
+        assertThat(result.challengeCompleted()).isTrue();
+        assertThat(result.challengeMastered()).isFalse();
+        assertThat(result.reasons()).contains("Recorded assistance prevents independent mastery.");
+    }
+
+    @Test
+    void availableVerifiedSecurityEvidenceSolvesWithoutUnderstandingOrIndependence() {
+        var result = score(FunctionalEvaluationStatus.PASS, 25, 45, SecurityCorrectnessStatus.VERIFIED_SAFE,
+                null, null, null);
+
+        assertThat(result.displayedScore()).isEqualTo(70);
+        assertThat(result.challengeCompleted()).isTrue();
+        assertThat(result.challengeMastered()).isFalse();
+    }
+
+    @Test
+    void verifiedStatusesCannotSolveBelowTheFunctionalAndSecurityBaseline() {
+        var result = score(FunctionalEvaluationStatus.PASS, 24, 45, SecurityCorrectnessStatus.VERIFIED_SAFE,
+                15, UnderstandingAssessmentStatus.ASSESSED, 15);
+
+        assertThat(result.displayedScore()).isEqualTo(99);
+        assertThat(result.challengeCompleted()).isFalse();
+        assertThat(result.challengeMastered()).isFalse();
+    }
+
+    @Test
+    void masteryRequiresNinetyPointsAndScoresAboveTenForUnderstandingAndIndependence() {
+        var result = score(FunctionalEvaluationStatus.PASS, 25, 45, SecurityCorrectnessStatus.VERIFIED_SAFE,
+                11, UnderstandingAssessmentStatus.ASSESSED, 11);
+
+        assertThat(result.displayedScore()).isEqualTo(92);
+        assertThat(result.challengeMastered()).isTrue();
+    }
+
+    @Test
+    void masteryRejectsTenPointUnderstandingOrIndependence() {
+        var result = score(FunctionalEvaluationStatus.PASS, 25, 45, SecurityCorrectnessStatus.VERIFIED_SAFE,
+                10, UnderstandingAssessmentStatus.ASSESSED, 15);
+
+        assertThat(result.challengeMastered()).isFalse();
+    }
+
     private OverallLearningScoreResult score(FunctionalEvaluationStatus functional, int functionalPoints,
             Integer securityPoints, SecurityCorrectnessStatus security, Integer understandingPoints,
             UnderstandingAssessmentStatus understanding, Integer independentPoints) {

@@ -8,7 +8,6 @@ import com.securecode.ai.entity.FunctionalEvaluationStatus;
 import com.securecode.ai.entity.Submission;
 import com.securecode.ai.entity.TestCase;
 import com.securecode.ai.entity.User;
-import com.securecode.ai.entity.UnderstandingAssessment;
 import com.securecode.ai.evaluation.judge0.Judge0Client;
 import com.securecode.ai.evaluation.judge0.Judge0ExecutionResult;
 import com.securecode.ai.evaluation.judge0.Judge0UnavailableException;
@@ -139,13 +138,12 @@ public class FunctionalEvaluationService {
         submission.recordIndependentProblemSolving(independent.score(),
                 independent.highestAssistance() == null ? "NONE" : independent.highestAssistance().name());
         int functionalScore = functionalScore(status, passed, total);
-        UnderstandingAssessment understanding = understandingAssessments
-                .findFirstByUser_IdAndChallenge_IdOrderByIdDesc(submission.getUser().getId(), submission.getChallenge().getId())
-                .orElse(null);
-        if (understanding != null) submission.recordUnderstanding(understanding.getScore(), understanding.getStatus().name());
+        // Understanding belongs to this exact submission.  Never carry a prior answer
+        // forward into a later attempt, otherwise historical/provisional scores drift.
+        submission.recordUnderstanding(null, "UNASSESSED");
         var overall = overallLearningScoreService.calculate(status, functionalScore, submission.getSecurityScore(),
                 securityCorrectness == null ? null : securityCorrectness.status(),
-                understanding == null ? null : understanding.getScore(), understanding == null ? null : understanding.getStatus(),
+                null, null,
                 independent.score());
         submission.recordOverallLearningScore(overall.displayedScore(), overall.verifiedFinalScore(), overall.scoreState(),
                 overall.challengeCompleted(), overall.challengeMastered());
@@ -157,7 +155,7 @@ public class FunctionalEvaluationService {
                 5 - submission.getAttemptNumber(), overall.displayedScore(), submission.getSecurityScore(), submission.getSecurityCorrectnessStatus(),
                 submission.getIndependentProblemSolvingScore(), submission.getHighestHintAssistance(), submission.getUnderstandingScore(),
                 submission.getUnderstandingAssessmentStatus(), overall.verifiedFinalScore(), overall.provisional(), overall.scoreState(),
-                overall.challengeCompleted(), overall.challengeMastered());
+                overall.challengeCompleted(), overall.challengeMastered(), submission.getUnderstandingAssessmentSessionToken());
     }
 
     private String submissionLanguage(Submission submission) { return submission.getLanguage(); }

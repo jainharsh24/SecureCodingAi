@@ -10,7 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 public interface ChallengeRepository extends JpaRepository<Challenge, Long> {
     @Override @EntityGraph(attributePaths = "testCases") List<Challenge> findAll();
     @EntityGraph(attributePaths = {"testCases", "prerequisites"}) List<Challenge> findByActiveTrueOrderByChallengeNumberAsc();
-    @Override @EntityGraph(attributePaths = "testCases") Optional<Challenge> findById(Long id);
+    @Override @EntityGraph(attributePaths = {"testCases", "prerequisites"}) Optional<Challenge> findById(Long id);
+    Optional<Challenge> findByChallengeNumber(long challengeNumber);
     @Query(value = "select nextval('challenge_number_sequence')", nativeQuery = true)
     long nextChallengeNumber();
 }

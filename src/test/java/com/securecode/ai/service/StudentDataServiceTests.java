@@ -78,4 +78,25 @@ class StudentDataServiceTests {
             assertThat(item.evidenceState()).isEqualTo("CONFLICTING EVIDENCE");
         });
     }
+
+    @Test
+    void doesNotCountAHighButUnverifiedHistoricalScoreAsSolved() {
+        UserRepository users = Mockito.mock(UserRepository.class);
+        SubmissionRepository submissions = Mockito.mock(SubmissionRepository.class);
+        FunctionalEvaluationRepository functionals = Mockito.mock(FunctionalEvaluationRepository.class);
+        SecurityEvaluationRepository securities = Mockito.mock(SecurityEvaluationRepository.class);
+        Submission submission = Mockito.mock(Submission.class);
+        Challenge challenge = Mockito.mock(Challenge.class);
+        when(users.findByEmail("student@example.test")).thenReturn(Optional.of(new User("student@example.test", "hash", Role.STUDENT)));
+        when(submission.getChallenge()).thenReturn(challenge);
+        when(submission.getLearningScore()).thenReturn(100);
+        when(challenge.getId()).thenReturn(4L);
+        when(submissions.findByUser_EmailOrderBySubmittedAtDesc("student@example.test")).thenReturn(List.of(submission));
+
+        var summary = new StudentDataService(users, submissions, functionals, securities).summary("student@example.test");
+
+        assertThat(summary.challengesAttempted()).isEqualTo(1);
+        assertThat(summary.challengesSolved()).isZero();
+        assertThat(summary.averageLearningScore()).isEqualTo(100.0);
+    }
 }

@@ -2,6 +2,7 @@ package com.securecode.ai.service;
 
 import com.securecode.ai.dto.ChallengeRequest;
 import com.securecode.ai.dto.ChallengeResponse;
+import com.securecode.ai.dto.PrerequisiteStatusResponse;
 import com.securecode.ai.dto.TestCaseRequest;
 import com.securecode.ai.dto.TestCaseResponse;
 import com.securecode.ai.entity.Challenge;
@@ -65,21 +66,65 @@ public class ChallengeService {
     }
     @Transactional
     public ChallengeResponse create(ChallengeRequest request) {
-        Challenge c = new Challenge(challengeRepository.nextChallengeNumber(), request.title(), request.description(), request.language(), request.vulnerabilityType(),
+        long challengeNumber = challengeRepository.nextChallengeNumber();
+        var prereqs = resolveAndValidatePrerequisites(null, challengeNumber, request.prerequisiteChallengeNumbers());
+        Challenge c = new Challenge(challengeNumber, request.title(), request.description(), request.language(), request.vulnerabilityType(),
                 request.vulnerabilitySubtype(), request.cwe(), request.starterCode(), request.difficulty());
         c.replaceTestCases(toEntities(request.testCases()));
-        return toResponse(challengeRepository.save(c), t -> true, null, null, java.util.Map.of());
+        c.replacePrerequisites(prereqs);
+        Challenge saved = challengeRepository.save(c);
+        var catalog = challengeRepository.findByActiveTrueOrderByChallengeNumberAsc();
+        var catalogNumbers = catalogNumbers(catalog);
+        return toResponse(saved, t -> true, null, catalogNumbers.get(saved.getId()), catalogNumbers);
     }
     @Transactional
     public ChallengeResponse update(Long id, ChallengeRequest request) {
         Challenge c = findChallenge(id);
+        var prereqs = resolveAndValidatePrerequisites(c.getId(), c.getChallengeNumber(), request.prerequisiteChallengeNumbers());
         c.update(request.title(), request.description(), request.language(), request.vulnerabilityType(),
                 request.vulnerabilitySubtype(), request.cwe(), request.starterCode(), request.difficulty());
         c.replaceTestCases(toEntities(request.testCases()));
-        return toResponse(c, t -> true, null, null, java.util.Map.of());
+        c.replacePrerequisites(prereqs);
+        Challenge saved = challengeRepository.save(c);
+        var catalog = challengeRepository.findByActiveTrueOrderByChallengeNumberAsc();
+        var catalogNumbers = catalogNumbers(catalog);
+        return toResponse(saved, t -> true, null, catalogNumbers.get(saved.getId()), catalogNumbers);
     }
     @Transactional
     public void delete(Long id) { challengeRepository.delete(findChallenge(id)); }
+
+    private java.util.Set<Challenge> resolveAndValidatePrerequisites(Long currentChallengeId, Long currentChallengeNumber, List<Long> prerequisiteNumbers) {
+        if (prerequisiteNumbers == null || prerequisiteNumbers.isEmpty()) {
+            return java.util.Collections.emptySet();
+        }
+        java.util.Set<Challenge> resolved = new java.util.LinkedHashSet<>();
+        for (Long number : prerequisiteNumbers) {
+            if (number == null) continue;
+            if (currentChallengeNumber != null && number.equals(currentChallengeNumber)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A challenge cannot have itself as a prerequisite (Challenge No. " + number + ")");
+            }
+            Challenge prereq = challengeRepository.findByChallengeNumber(number)
+                    .or(() -> challengeRepository.findById(number))
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Prerequisite challenge not found: " + number));
+            if (currentChallengeId != null && prereq.getId().equals(currentChallengeId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A challenge cannot have itself as a prerequisite (Challenge No. " + number + ")");
+            }
+            if (currentChallengeId != null && hasPrerequisiteCycle(prereq, currentChallengeId, new java.util.HashSet<>())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Circular prerequisite dependency detected with Challenge No. " + prereq.getChallengeNumber() + " (" + prereq.getTitle() + ")");
+            }
+            resolved.add(prereq);
+        }
+        return resolved;
+    }
+
+    private boolean hasPrerequisiteCycle(Challenge current, Long targetId, java.util.Set<Long> visited) {
+        if (current.getId().equals(targetId)) return true;
+        if (!visited.add(current.getId())) return false;
+        for (Challenge next : current.getPrerequisites()) {
+            if (hasPrerequisiteCycle(next, targetId, visited)) return true;
+        }
+        return false;
+    }
 
     private Challenge findChallenge(Long id) {
         return challengeRepository.findById(id)
@@ -97,16 +142,25 @@ public class ChallengeService {
         return numbers;
     }
     private ChallengeResponse toResponse(Challenge c, Predicate<TestCase> include, User user, Integer catalogNumber, java.util.Map<Long, Integer> catalogNumbers) {
-        var access = user == null ? new com.securecode.ai.dto.PrerequisiteAccessResponse(c.getId(), true, List.of()) : prerequisiteAccess.access(user, c, catalogNumbers);
+        var access = user == null ? new com.securecode.ai.dto.PrerequisiteAccessResponse(c.getId(), true,
+                c.getPrerequisites().stream().map(p -> new PrerequisiteStatusResponse(p.getId(), p.getChallengeNumber(), catalogNumbers.get(p.getId()), p.getTitle(), p.getDifficulty().name(), false, true)).toList())
+                : prerequisiteAccess.access(user, c, catalogNumbers);
         boolean locked = !access.accessible();
         List<TestCaseResponse> tests = c.getTestCases().stream().filter(include)
                 .sorted(Comparator.comparingInt(TestCase::getPosition))
                 .map(t -> new TestCaseResponse(t.getId(), t.getInputData(), t.getExpectedOutput(), t.isHidden(), t.getPosition())).toList();
         int attempts = user == null ? 0 : (int) submissionRepository.countByUser_IdAndChallenge_Id(user.getId(), c.getId());
-        boolean solved = user != null && submissionRepository.findByUser_EmailAndChallenge_IdOrderByAttemptNumberAsc(user.getEmail(), c.getId())
-                .stream().anyMatch(s -> s.getLearningScoreState() == null
-                        ? s.getLearningScore() >= 90 : s.isVerifiedCompleted());
+        List<com.securecode.ai.entity.Submission> submissions = user == null ? List.of()
+                : submissionRepository.findByUser_EmailAndChallenge_IdOrderByAttemptNumberAsc(user.getEmail(), c.getId());
+        Predicate<com.securecode.ai.entity.Submission> successful = submission -> submission.getLearningScoreState() == null
+                ? submission.getLearningScore() >= 90 : submission.isVerifiedCompleted();
+        boolean solved = submissions.stream().anyMatch(successful);
+        boolean mastered = submissions.stream().anyMatch(com.securecode.ai.entity.Submission::isVerifiedMastered);
+        Long successfulSubmissionId = submissions.stream().filter(successful)
+                .max(Comparator.comparingInt(com.securecode.ai.entity.Submission::getAttemptNumber))
+                .map(com.securecode.ai.entity.Submission::getId).orElse(null);
         return new ChallengeResponse(c.getId(), c.getChallengeNumber(), catalogNumber, c.getTitle(), c.getDescription(), c.getLanguage(), c.getVulnerabilityType(),
-                c.getVulnerabilitySubtype(), c.getCwe(), c.getStarterCode(), tests, c.getDifficulty().name(), attempts, Math.max(0, 5 - attempts), solved, locked, access.prerequisites());
+                c.getVulnerabilitySubtype(), c.getCwe(), c.getStarterCode(), tests, c.getDifficulty().name(), attempts, Math.max(0, 5 - attempts), solved, mastered,
+                successfulSubmissionId, locked, access.prerequisites());
     }
 }
