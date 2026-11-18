@@ -9,3 +9,12 @@ target/
 # Local database configuration
 .env
 .env.example
+
+__pycache__
+report_builder
+images_&_ppt
+*.docx
+*.py
+*.json
+*.txt
+
