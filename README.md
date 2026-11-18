@@ -25,6 +25,33 @@ The platform currently focuses on **Injection Attacks** and provides an interact
 - **Prerequisite-Based Learning:** Organizes challenges into structured learning paths.
 - **Admin Dashboard:** Supports user management and challenge creation, editing, and deletion.
 
+## Project Screenshots
+
+### Homepage
+![Homepage](ss/Homepage.png)
+
+### Challenge Catalog
+![Challenge Catalog](ss/challengespage.png)
+
+### Interactive Code Editor
+![Interactive Code Editor](ss/Code-editorpage.png)
+
+### Dual-Stage Evaluation & Security Analysis (Part 1)
+![Submission Analysis Page 1](ss/Submission_analysis_page_1.png)
+
+### Multi-Engine Findings & AI Advisory Feedback (Part 2)
+![Submission Analysis Page 2](ss/Submission_analysis_page_2.png)
+
+### Submission Attempt History
+![Submission Attempt History](ss/5-attempt-history.png)
+
+### Learning Hub
+![Learning Hub](ss/Learninghubpage.png)
+
+### Learning Analytics & Progress Tracking
+![Learning Analytics Page](ss/Analyticspage.png)
+
+
 ## Challenge Catalog
 
 The platform currently contains 45 active challenges across four difficulty levels.
